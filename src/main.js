@@ -8,6 +8,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Scene
@@ -23,17 +25,33 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1, 0);
 controls.enableDamping = true;
 
-// Lights — emulate a desk lamp
-const ambient = new THREE.AmbientLight(0xffffff, 0.25);
+// Lights — emulate a high-end desk lamp
+const ambient = new THREE.AmbientLight(0xffffff, 0.15); // reduced ambient for more dramatic effect
 scene.add(ambient);
 
-const dir = new THREE.DirectionalLight(0xfff7e8, 1.0); // warm lamp-like color
-dir.position.set(1, 2, 1);
-dir.castShadow = true;
-dir.shadow.camera.near = 0.1;
-dir.shadow.camera.far = 10;
-dir.shadow.mapSize.set(1024, 1024);
-scene.add(dir);
+// Main lamp: PointLight for localized desk-lamp effect with shadows
+const lamp = new THREE.PointLight(0xfff7e8, 150, 15, 2); // warm color, high intensity, distance=15, decay=2 (physically correct)
+lamp.position.set(-3.5, 6.5, -2.1); // exact bulb position
+lamp.castShadow = true;
+lamp.shadow.camera.near = 0.1;
+lamp.shadow.camera.far = 15;
+lamp.shadow.mapSize.set(2048, 2048);
+lamp.shadow.bias = -0.001;
+scene.add(lamp);
+
+// Fill light: faint PointLight to soften harsh shadows (no shadows cast)
+const fillLight = new THREE.PointLight(0xffffff, 20, 15, 2); // low intensity, same position
+fillLight.position.set(-3.5, 6.5, -2.1);
+fillLight.castShadow = false; // no shadows to avoid pitch-black holes
+scene.add(fillLight);
+
+// Visual helper: small sphere to show lamp position (remove this later)
+const lampHelper = new THREE.Mesh(
+  new THREE.SphereGeometry(0.05, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffff00 })
+);
+lampHelper.position.copy(lamp.position);
+scene.add(lampHelper);
 
 // GLTF + DRACO loader setup
 const dracoLoader = new DRACOLoader();
@@ -54,11 +72,11 @@ gltfLoader.load(
       return;
     }
 
-    // Optional: a small adjust so the model sits nicely in view
+    // Ensure the world model (table, room) receives shadows and casts them if needed
     root.traverse((child) => {
       if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
+        child.castShadow = true;  // objects in the room can cast shadows
+        child.receiveShadow = true; // the table/floor receives shadows
         // ensure correct color space for materials using textures
         if (child.material && child.material.map) child.material.map.encoding = THREE.sRGBEncoding;
       }
@@ -66,6 +84,10 @@ gltfLoader.load(
 
     scene.add(root);
     console.log('Loaded world_scene:', gltf);
+    
+    // NOTE: When you add folder clones later, ensure each folder mesh has:
+    // - castShadow = true
+    // - receiveShadow = true
   },
   (progress) => {
     if (progress.total) {
