@@ -43,8 +43,8 @@ dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
-// Load the room + table (served from Vite's /public folder as '/models/world_scene.glb')
-const WORLD_URL = '/models/world_scene.glb';
+// Load the room + table (served from Vite's /public folder as '/world_scene.glb')
+const WORLD_URL = '/world_scene.glb';
 gltfLoader.load(
   WORLD_URL,
   (gltf) => {
@@ -96,4 +96,3 @@ animate();
 
 // Expose scene for debugging in the console (optional)
 window.scene = scene;
-import './style.scss'
