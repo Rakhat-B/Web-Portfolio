@@ -185,7 +185,7 @@ function createFolderClones(template) {
   const ROTATION_Z = 0;            // Rotate around Z axis
   // ====================================================
   
-  const NUM_FOLDERS = 5;
+  const NUM_FOLDERS = 10; // CHANGE THIS to test with more/fewer folders (5, 10, 15, etc.)
   
   for (let i = 0; i < NUM_FOLDERS; i++) {
     // Clone the template
@@ -328,31 +328,52 @@ function handleFolderClick() {
   console.log('❌ No intersection with folder holder');
 }
 
-// Generate natural scatter position and rotation for folders on table
-function generateScatterTransform(index, tableHeight = -0.7) {
-  // Base positions for 5 folders spread LEFT to RIGHT across table
-  const basePositions = [
-    { x: -4.2, z: -1.5 }, // Far left
-    { x: -3.2, z: -1.3 }, // Left
-    { x: -2.2, z: -1.6 }, // Center
-    { x: -1.2, z: -1.4 }, // Right
-    { x: -0.2, z: -1.5 }, // Far right
-  ];
+// Generate dynamic horizontal row layout for any number of folders
+// Folders lay flat on table in a left-to-right row, stacking vertically if they overlap
+function generateScatterTransform(index, tableHeight = -0.7, totalFolders = 5) {
+  // Configuration
+  const TABLE_CENTER_X = -2.2;  // Center X position of the table
+  const TABLE_Z = -1.5;          // Z position (depth) where folders sit
+  const FOLDER_WIDTH = 0.8;      // Approximate width of each folder when flat
+  const TABLE_WIDTH = 4.5;       // Available table width for folders
   
-  const basePos = basePositions[index] || { x: -2, z: -1 };
+  // Calculate dynamic spacing based on folder count
+  const totalWidth = Math.min(FOLDER_WIDTH * totalFolders, TABLE_WIDTH);
+  const spacing = totalFolders > 1 ? totalWidth / (totalFolders - 1) : 0;
   
-  // Add random offset for natural scatter (REDUCED to prevent overlap)
-  const randomOffset = 0.15;
+  // Start position (leftmost)
+  const startX = TABLE_CENTER_X - (totalWidth / 2);
+  
+  // Calculate X position for this folder
+  const baseX = startX + (index * spacing);
+  
+  // Add small random scatter for natural look
+  const randomOffset = 0.1;
+  const x = baseX + (Math.random() - 0.5) * randomOffset;
+  const z = TABLE_Z + (Math.random() - 0.5) * randomOffset;
+  
+  // Calculate vertical offset: if folders overlap horizontally, stack them slightly
+  // Every folder at similar X position gets a small height bump to prevent Z-fighting
+  const overlapThreshold = FOLDER_WIDTH * 0.7;
+  let verticalOffset = 0;
+  
+  // Simple stacking: if too many folders, create layers
+  if (totalFolders > 6) {
+    const foldersPerRow = 6;
+    const row = Math.floor(index / foldersPerRow);
+    verticalOffset = row * 0.05; // Stack 0.05 units higher per row
+  }
+  
   const position = {
-    x: basePos.x + (Math.random() - 0.5) * randomOffset,
-    y: tableHeight,
-    z: basePos.z + (Math.random() - 0.5) * randomOffset
+    x: x,
+    y: tableHeight + verticalOffset,
+    z: z
   };
   
-  // Random rotation around Y axis (90° ± variation)
+  // Random rotation around Y axis for natural scatter look
   const rotation = {
     x: 0, // Flat on table
-    y: Math.PI / 2 + (Math.random() - 0.5) * 0.4, // 90° with variation
+    y: Math.PI / 2 + (Math.random() - 0.5) * 0.3, // 90° rotation + small random yaw
     z: 0
   };
   
@@ -390,9 +411,9 @@ function animateFolderToTable(folderData, folderIndex = 0) {
     z: 5 // behind camera
   });
   
-  // Get natural scatter position and rotation
+  // Get dynamic position and rotation based on total folder count
   const TABLE_HEIGHT = -0.7; // Adjust this if folders are floating or sinking
-  const transform = generateScatterTransform(folderIndex, TABLE_HEIGHT);
+  const transform = generateScatterTransform(folderIndex, TABLE_HEIGHT, folders.length);
   
   // STEP C: Slide onto table surface
   // STEP D: Rotate from vertical to flat (done in parallel)
