@@ -2,25 +2,35 @@ import { gsap } from 'gsap';
 
 export function generateScatterTransform(index, tableHeight = -0.7, totalFolders = 5) {
   const tableCenterX = -2.2;
-  const tableZ = -1.5;
-  const folderWidth = 0.8;
+  const tableCenterZ = -1.5;
   const tableWidth = 4.5;
+  const tableDepth = 2.4;
+  const marginX = 0.35;
+  const marginZ = 0.25;
 
-  const totalWidth = Math.min(folderWidth * totalFolders, tableWidth);
-  const spacing = totalFolders > 1 ? totalWidth / (totalFolders - 1) : 0;
-  const startX = tableCenterX - (totalWidth / 2);
-  const baseX = startX + (index * spacing);
+  const usableWidth = Math.max(0.2, tableWidth - marginX * 2);
+  const usableDepth = Math.max(0.2, tableDepth - marginZ * 2);
 
-  const randomOffset = 0.1;
-  const x = baseX + (Math.random() - 0.5) * randomOffset;
-  const z = tableZ + (Math.random() - 0.5) * randomOffset;
+  const aspect = usableWidth / usableDepth;
+  const columns = Math.max(1, Math.ceil(Math.sqrt(totalFolders * aspect)));
+  const rows = Math.max(1, Math.ceil(totalFolders / columns));
 
-  let verticalOffset = 0;
-  if (totalFolders > 6) {
-    const foldersPerRow = 6;
-    const row = Math.floor(index / foldersPerRow);
-    verticalOffset = row * 0.05;
-  }
+  const col = index % columns;
+  const row = Math.floor(index / columns);
+
+  const spacingX = columns > 1 ? usableWidth / (columns - 1) : 0;
+  const spacingZ = rows > 1 ? usableDepth / (rows - 1) : 0;
+
+  const startX = tableCenterX - (usableWidth / 2);
+  const startZ = tableCenterZ - (usableDepth / 2);
+
+  const jitterX = Math.min(0.12, spacingX * 0.2);
+  const jitterZ = Math.min(0.12, spacingZ * 0.2);
+
+  const x = startX + (col * spacingX) + (Math.random() - 0.5) * jitterX;
+  const z = startZ + (row * spacingZ) + (Math.random() - 0.5) * jitterZ;
+
+  const verticalOffset = row * 0.01;
 
   return {
     position: {
