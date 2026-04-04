@@ -27,7 +27,7 @@ export function addLights(scene) {
   const ambient = new THREE.AmbientLight(0xffffff, 0.15);
   scene.add(ambient);
 
-  const lamp = new THREE.PointLight(0xfff7e8, 150, 15, 2);
+  const lamp = new THREE.PointLight(0xfff7e8, 50, 15, 2);
   lamp.position.set(-3.5, 6.5, -2.1);
   lamp.castShadow = true;
   lamp.shadow.camera.near = 0.1;

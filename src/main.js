@@ -3,9 +3,18 @@ import { createGltfLoader } from './core/loaders';
 import { createCameraControls } from './features/camera/cameraController';
 import { loadWorldAndFolderTemplate } from './features/world/worldLoader';
 import { createFolderClones } from './features/folders/folderSpawner';
-import { animateFolderToTable } from './features/folders/folderAnimations';
+import { animateFolderToTable, setFolderScatterBounds } from './features/folders/folderAnimations';
 import { createFolderInteraction } from './features/folders/folderInteractions';
 import './style.scss';
+
+// Tune these to match the usable top surface of your table in world coordinates.
+const TABLE_SCATTER_BOUNDS = {
+  minX: -4.4,
+  maxX: -1.2,
+  minZ: -2.5,
+  maxZ: 1.3,
+  y: -0.7
+};
 
 const renderer = createRenderer();
 const scene = createScene();
@@ -17,6 +26,8 @@ bindResize(camera, renderer);
 const gltfLoader = createGltfLoader();
 const folders = [];
 let fileHolderMesh = null;
+
+setFolderScatterBounds(TABLE_SCATTER_BOUNDS);
 
 function animate() {
   requestAnimationFrame(animate);
@@ -49,6 +60,7 @@ async function bootstrap() {
     scene,
     camera,
     folders,
+    hoverPlaneY: TABLE_SCATTER_BOUNDS.y,
     getFileHolderMesh: () => fileHolderMesh,
     onFolderTriggerClick: (singleFolder) => {
       if (singleFolder) {
