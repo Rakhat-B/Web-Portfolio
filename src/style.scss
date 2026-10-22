@@ -4,6 +4,23 @@
   box-sizing: border-box;
 }
 
+// Warm vignette behind the transparent 3D canvas: lamp-lit centre fading to dark edges.
+:root {
+  --bg-centre: #6b4a30;
+  --bg-mid: #2b1b11;
+  --bg-edge: #0c0806;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(ellipse at 50% 45%, var(--bg-centre) 0%, var(--bg-mid) 55%, var(--bg-edge) 100%) fixed;
+}
+
+// Inline canvases leave a few px of line-height below them, which adds a scrollbar.
+canvas {
+  display: block;
+}
+
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -13,4 +30,303 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+// View nav (see index.html): invisible edge strips on the desk and board views. Each holds an
+// arrow circle near its edge that slides in when the mouse enters the strip.
+.view-nav button {
+  display: none;
+  position: fixed;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-nav__left { left: 0; top: 0; bottom: 15vh; width: 15vw; padding: 0 0 0 32px; place-items: center start; }
+.view-nav__right { right: 0; top: 0; bottom: 15vh; width: 15vw; padding: 0 32px 0 0; place-items: center end; }
+.view-nav__bottom { left: 0; right: 0; bottom: 0; height: 15vh; padding: 0 0 24px; place-items: end center; }
+
+[data-view='table'] :is(.view-nav__bottom, .view-nav__right),
+[data-view='board'] :is(.view-nav__bottom, .view-nav__left) {
+  display: grid;
+}
+
+// Glassy circle for the nav arrows and the folder close button; dark tint reads on bright and dark scenes.
+.view-nav__arrow,
+.folder-close,
+.doc-viewer__close {
+  position: relative; // anchors the .tip
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.view-nav__arrow:hover,
+.folder-close:hover,
+.doc-viewer__close:hover,
+.doc-viewer__download:hover {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.view-nav button:focus-visible {
+  outline: none;
+}
+
+.view-nav button:focus-visible .view-nav__arrow {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+// With a mouse, arrows wait off their edge until the pointer enters the strip. Touch screens
+// have no hover, so there they always show.
+@media (hover: hover) {
+  .view-nav__arrow {
+    opacity: 0;
+    transition:
+      opacity 0.25s ease,
+      translate 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      background 0.2s;
+  }
+
+  .view-nav__left .view-nav__arrow { translate: -88px 0; }
+  .view-nav__right .view-nav__arrow { translate: 88px 0; }
+  .view-nav__bottom .view-nav__arrow { translate: 0 80px; }
+
+  .view-nav button:is(:hover, :focus-visible) .view-nav__arrow {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+// Hotspots (main.js keeps them over their 3D point): table and board in the room view, holder on the desk.
+.hotspot {
+  display: none;
+  position: fixed;
+  translate: -50% -50%;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(4px);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.hotspot::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+[data-view='overview'] .hotspot[data-in='overview'],
+[data-view='table'] .hotspot[data-in='table'] {
+  display: block;
+}
+
+.hotspot:is(:hover, :focus-visible) {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+// Label box for hotspots and nav arrows: fades in and slides out from beside its circle.
+.tip {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  translate: -8px -50%;
+  scale: 0.9;
+  transform-origin: left center;
+  transition:
+    opacity 0.25s ease,
+    translate 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    scale 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tip--left {
+  left: auto;
+  right: calc(100% + 10px);
+  translate: 8px -50%;
+  transform-origin: right center;
+}
+
+// Covers the gap between circle and label, so moving onto the label keeps the hover.
+.tip::before {
+  content: '';
+  position: absolute;
+  inset: 0 -12px;
+}
+
+// A shown label is part of its button: clicking the text works like clicking the circle.
+.hotspot:is(:hover, :focus-visible) .tip,
+.view-nav__arrow:hover .tip,
+.view-nav button:focus-visible .tip {
+  opacity: 1;
+  translate: 0 -50%;
+  scale: 1;
+  pointer-events: auto;
+}
+
+// Labels pinned to a 3D point by main.js: a folder's name centred over it, and a board link's
+// label hanging just under the badge.
+.screen-label {
+  position: fixed;
+  pointer-events: none; // a click on the folder name still reaches the folder underneath
+
+  .tip {
+    left: 0;
+    translate: -50% calc(-50% + 8px);
+    transform-origin: center;
+  }
+
+  &.is-shown .tip {
+    opacity: 1;
+    translate: -50% -50%;
+    scale: 1;
+  }
+}
+
+.screen-label--link {
+  display: none;
+  color: inherit;
+  text-decoration: none;
+
+  .tip {
+    top: 0;
+    translate: -50% -8px;
+    transform-origin: top center;
+  }
+
+  &:is(.is-shown, :focus-visible) .tip {
+    opacity: 1;
+    translate: -50% 0;
+    scale: 1;
+    pointer-events: auto; // clicking the label also opens the link
+  }
+}
+
+[data-view='board'] .screen-label--link {
+  display: block;
+}
+
+// Opened board document: main.js places it exactly over the sheet that flew up to the camera.
+// The huge spread shadow dims the rest of the scene behind it.
+.doc-viewer {
+  position: fixed;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45), 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: page-in 0.3s ease-out;
+}
+
+.doc-viewer__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.doc-viewer__bar {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-viewer__download {
+  padding: 14px 24px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 16px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+// Opened-folder pages: the CSS3DRenderer layer over the canvas (see folderPages.js).
+.css3d {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; // the pages turn it back on for themselves
+}
+
+.page {
+  width: 600px; // folderPages.js maps 600 css px to 0.85 world units
+  height: 810px;
+  padding: 48px;
+  background: #fffdf7;
+  color: #222;
+  font-size: 28px;
+  line-height: 1.4;
+  backface-visibility: hidden; // the left page faces down while the cover is closed
+  animation: page-in 0.4s ease-out;
+}
+
+@keyframes page-in {
+  from { opacity: 0; }
+}
+
+.page__title {
+  margin-bottom: 24px;
+  font-size: 44px;
+}
+
+.page__placeholder {
+  display: grid;
+  place-items: center;
+  height: 160px;
+  margin: 32px 0;
+  border: 3px dashed #bbb;
+  color: #999;
+}
+
+.page__placeholder--tall {
+  height: 520px;
+  margin-top: 0;
+}
+
+.page__link {
+  color: #0b57d0;
+}
+
+.folder-close {
+  display: none;
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1; // above the 3D pages
+}
+
+[data-view='folder'] .folder-close {
+  display: grid;
 }

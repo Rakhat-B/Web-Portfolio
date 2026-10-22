@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 export function createRenderer() {
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // alpha: transparent clear, so the CSS gradient on <body> shows around the room.
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -12,15 +13,11 @@ export function createRenderer() {
 }
 
 export function createScene() {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xeeeeee);
-  return scene;
+  return new THREE.Scene();
 }
 
 export function createCamera() {
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 6, 8);
-  return camera;
+  return new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 }
 
 export function addLights(scene) {

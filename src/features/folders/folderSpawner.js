@@ -1,26 +1,18 @@
 import * as THREE from 'three';
 
-const START_X = -2.25;
-const START_Y = 4.7;
-const START_Z = -2.1;
-const SPACING_X = 0.0;
-const SPACING_Y = 0.0;
-const ROTATION_X = Math.PI / 2;
-const ROTATION_Y = 0;
-const ROTATION_Z = 0;
-const BASE_FOLDER_COUNT = 5;
-const BASE_SPACING_Z = 0.03;
-const HOLDER_DEPTH_SPAN = BASE_SPACING_Z * Math.max(BASE_FOLDER_COUNT - 1, 1);
+// Centre of the front folder in the holder; the rest step back along z.
+const HOLDER_START = { x: -2.855, y: 4.79, z: 2.755 };
+const HOLDER_DEPTH_SPAN = 0.12;
 
-export function createFolderClones({ template, fileHolderMesh, scene, numFolders = 10 }) {
-  if (!fileHolderMesh) {
-    console.warn('fileHolder not found, cannot position folders');
-    return [];
-  }
+// The model's geometry sits ~4.85 above its own origin. Re-centre it once so a
+// folder's position is its real centre (slots, hover colliders, rotations).
+function centerTemplate(template) {
+  const center = new THREE.Box3().setFromObject(template).getCenter(new THREE.Vector3());
+  template.children.forEach((child) => child.position.sub(center));
+}
 
-  const holderWorldPos = new THREE.Vector3();
-  fileHolderMesh.getWorldPosition(holderWorldPos);
-  console.log('FileHolder world position:', `x:${holderWorldPos.x.toFixed(2)}, y:${holderWorldPos.y.toFixed(2)}, z:${holderWorldPos.z.toFixed(2)}`);
+export function createFolderClones({ template, scene, numFolders }) {
+  centerTemplate(template);
 
   const spacingZ = numFolders > 1 ? HOLDER_DEPTH_SPAN / (numFolders - 1) : 0;
   const folders = [];
@@ -28,13 +20,8 @@ export function createFolderClones({ template, fileHolderMesh, scene, numFolders
   for (let i = 0; i < numFolders; i++) {
     const folderClone = template.clone();
 
-    folderClone.position.set(
-      START_X + (i * SPACING_X),
-      START_Y + (i * SPACING_Y),
-      START_Z + (i * spacingZ)
-    );
-
-    folderClone.rotation.set(ROTATION_X, ROTATION_Y, ROTATION_Z);
+    folderClone.position.set(HOLDER_START.x, HOLDER_START.y, HOLDER_START.z + (i * spacingZ));
+    folderClone.rotation.set(Math.PI / 2, 0, 0); // standing upright in the holder
 
     folderClone.traverse((child) => {
       if (child.isMesh) {
@@ -50,14 +37,12 @@ export function createFolderClones({ template, fileHolderMesh, scene, numFolders
 
     folders.push({
       mesh: folderClone,
+      homePosition: folderClone.position.clone(),
+      homeRotation: folderClone.rotation.clone(),
       isAnimating: false,
       index: i
     });
-
-    const pos = folderClone.position;
-    console.log(`Folder ${i} position: x:${pos.x.toFixed(2)}, y:${pos.y.toFixed(2)}, z:${pos.z.toFixed(2)}`);
   }
 
-  console.log(`Created ${numFolders} folder clones`);
   return folders;
 }

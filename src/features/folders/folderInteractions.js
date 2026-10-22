@@ -4,10 +4,10 @@ import { gsap } from 'gsap';
 const HOVER_LIFT = 0.12;
 const HOVER_DURATION = 0.22;
 const OUTLINE_COLOR = 0x111111;
-const HOVER_COLLIDER_RADIUS = 0.28;
+const HOVER_COLLIDER_SIZE = [1.1, 0.1, 1.35]; // folder footprint (1.06 × 1.32) plus a margin
 const SHOW_HOVER_SPHERES = false;
 
-export function createFolderInteraction({ scene, camera, folders, getFileHolderMesh, onFolderTriggerClick, hoverPlaneY = null }) {
+export function createFolderInteraction({ camera, folders, isActive, onHoverChange }) {
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
   let hoveredFolder = null;
@@ -47,7 +47,7 @@ export function createFolderInteraction({ scene, camera, folders, getFileHolderM
     }
 
     const collider = new THREE.Mesh(
-      new THREE.SphereGeometry(HOVER_COLLIDER_RADIUS, 12, 10),
+      new THREE.BoxGeometry(...HOVER_COLLIDER_SIZE),
       new THREE.MeshBasicMaterial({
         color: 0xff0000,
         transparent: true,
@@ -59,7 +59,6 @@ export function createFolderInteraction({ scene, camera, folders, getFileHolderM
 
     collider.userData.type = 'folderHoverCollider';
     collider.userData.folderRef = folderData;
-    collider.position.set(0, 0.02, 0);
     folderData.mesh.add(collider);
     folderData.hoverCollider = collider;
   }
@@ -72,7 +71,8 @@ export function createFolderInteraction({ scene, camera, folders, getFileHolderM
     const segments = [];
 
     folderData.mesh.traverse((child) => {
-      if (!child.isMesh || !child.geometry) {
+      // Skip the invisible hover box: its outline drew a rectangle and its lines stole click raycasts.
+      if (!child.isMesh || !child.geometry || child === folderData.hoverCollider) {
         return;
       }
 
@@ -184,6 +184,7 @@ export function createFolderInteraction({ scene, camera, folders, getFileHolderM
     if (hoveredFolder) {
       setFolderHoverState(hoveredFolder, true);
     }
+    onHoverChange(hoveredFolder);
   }
 
   function clearHoveredFolder() {
@@ -193,111 +194,22 @@ export function createFolderInteraction({ scene, camera, folders, getFileHolderM
 
     setFolderHoverState(hoveredFolder, false);
     hoveredFolder = null;
-  }
-
-  function handleFolderClick() {
-    raycaster.setFromCamera(mouse, camera);
-
-    console.log('🖱️ Click detected! Mouse:', mouse.x.toFixed(2), mouse.y.toFixed(2));
-    console.log('Camera position:', camera.position);
-
-    const fileHolderMesh = getFileHolderMesh();
-    if (!fileHolderMesh) {
-      console.log('❌ File holder not loaded yet');
-      return;
-    }
-
-    console.log('✅ File holder exists:', fileHolderMesh.name);
-
-    const allIntersects = raycaster.intersectObjects(scene.children, true);
-    console.log('Total scene intersections:', allIntersects.length);
-
-    if (allIntersects.length === 0) {
-      console.log('❌ No intersection with folder holder');
-      return;
-    }
-
-    console.log('First hit:', allIntersects[0].object.name || allIntersects[0].object.type, 'distance:', allIntersects[0].distance.toFixed(2));
-
-    console.log('All intersections:');
-    allIntersects.forEach((hit, index) => {
-      console.log(`  ${index}: ${hit.object.name || hit.object.type} (distance: ${hit.distance.toFixed(2)}), userData:`, hit.object.userData);
-    });
-
-    const triggerHit = allIntersects.find((hit) => hit.object.userData.type === 'folderTrigger');
-    if (triggerHit) {
-      console.log('🎯 Clicked on folder trigger sphere!');
-      onFolderTriggerClick();
-      return;
-    }
-
-    const fileHolderHit = allIntersects.find((hit) => {
-      let obj = hit.object;
-      while (obj) {
-        if (obj === fileHolderMesh || obj.name === 'fileHolder') {
-          return true;
-        }
-        obj = obj.parent;
-      }
-      return false;
-    });
-
-    if (fileHolderHit) {
-      console.log('🎯 Found folder holder in intersections at distance:', fileHolderHit.distance.toFixed(2));
-
-      const availableFolder = folders.find((folder) => !folder.isAnimating);
-      if (availableFolder) {
-        clearHoveredFolder();
-        console.log(`▶️ Animating folder ${availableFolder.index}`);
-        onFolderTriggerClick(availableFolder);
-      } else {
-        console.log('⏸️ All folders are currently animating');
-      }
-      return;
-    }
-
-    console.log('❌ No intersection with folder holder');
-  }
-
-  function onMouseClick(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    handleFolderClick();
+    onHoverChange(null);
   }
 
   function onMouseMove(event) {
+    if (!isActive()) {
+      clearHoveredFolder();
+      return;
+    }
+
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     updateHoveredFolder();
   }
 
-  function onMouseLeave() {
-    clearHoveredFolder();
-  }
-
-  window.addEventListener('click', onMouseClick, false);
   window.addEventListener('mousemove', onMouseMove, false);
-  window.addEventListener('mouseleave', onMouseLeave, false);
+  window.addEventListener('mouseleave', clearHoveredFolder, false);
 
-  return () => {
-    window.removeEventListener('click', onMouseClick, false);
-    window.removeEventListener('mousemove', onMouseMove, false);
-    window.removeEventListener('mouseleave', onMouseLeave, false);
-    clearHoveredFolder();
-
-    folders.forEach((folderData) => {
-      if (!folderData?.hoverCollider) {
-        return;
-      }
-
-      const collider = folderData.hoverCollider;
-      if (collider.parent) {
-        collider.parent.remove(collider);
-      }
-
-      collider.geometry.dispose();
-      collider.material.dispose();
-      folderData.hoverCollider = null;
-    });
-  };
+  return { clearHoveredFolder };
 }

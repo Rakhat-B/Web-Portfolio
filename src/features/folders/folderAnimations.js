@@ -1,256 +1,77 @@
 import { gsap } from 'gsap';
 
-const DEFAULT_SCATTER_BOUNDS = {
-  minX: -4.0,
-  maxX: -0.4,
-  minZ: -2.4,
-  maxZ: -0.6,
-  y: -0.7
-};
+// Table top is y = 4.08; folders are 0.035 thick.
+export const TABLE_Y = 4.1;
+// An opened folder rises this much so its cover clears the neighbouring folders.
+export const OPEN_LIFT = 0.3;
+// Where a folder slides to before opening: the open folder (z -1.13..0.91) clears the holder and lamp.
+export const OPEN_SPOT = { x: -2.3, z: -0.6 };
+// Travel height: a standing folder (1.32 tall) clears the holder top (5.67).
+const LIFT_Y = 6.5;
+const STAGGER = 0.08;
 
-let scatterBounds = { ...DEFAULT_SCATTER_BOUNDS };
-const scatterLayoutCache = new Map();
-const FOLDER_HALF_WIDTH = 0.18;
-const FOLDER_HALF_DEPTH = 0.12;
-const MAX_YAW_OFFSET = 0.22;
+// One spot per folder, in table-camera reading order: far row left→right, then
+// near row. Measured to clear the lamp (far right) and the holder (left end).
+// yaw is a small tilt on top of π/2, which faces the folder to the table camera.
+export const FOLDER_SLOTS = [
+  { x: -3.35, z: 1.6, yaw: -0.07 },
+  { x: -3.35, z: 0.35, yaw: 0.05 },
+  { x: -3.35, z: -0.9, yaw: -0.03 },
+  { x: -1.75, z: 2.0, yaw: 0.06 },
+  { x: -1.75, z: 0.82, yaw: -0.08 },
+  { x: -1.75, z: -0.36, yaw: 0.03 },
+  { x: -1.75, z: -1.54, yaw: -0.05 },
+  { x: -1.75, z: -2.72, yaw: 0.04 }
+];
 
-function hashBounds(bounds) {
-  return `${bounds.minX}|${bounds.maxX}|${bounds.minZ}|${bounds.maxZ}|${bounds.y}`;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function randomInRange(min, max) {
-  return min + (Math.random() * (max - min));
-}
-
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-
-  return array;
-}
-
-function getRotatedHalfExtents(yaw) {
-  const c = Math.abs(Math.cos(yaw));
-  const s = Math.abs(Math.sin(yaw));
-
-  return {
-    x: (FOLDER_HALF_WIDTH * c) + (FOLDER_HALF_DEPTH * s),
-    z: (FOLDER_HALF_WIDTH * s) + (FOLDER_HALF_DEPTH * c)
-  };
-}
-
-function clampPointToBounds(point, bounds, extents) {
-  return {
-    x: clamp(point.x, bounds.minX + extents.x, bounds.maxX - extents.x),
-    z: clamp(point.z, bounds.minZ + extents.z, bounds.maxZ - extents.z)
-  };
-}
-
-function buildScatterLayout(totalFolders, bounds) {
-  const width = Math.max(0.2, bounds.maxX - bounds.minX);
-  const depth = Math.max(0.2, bounds.maxZ - bounds.minZ);
-  const areaPerFolder = (width * depth) / Math.max(1, totalFolders);
-  const aspect = width / depth;
-  const columns = Math.max(1, Math.ceil(Math.sqrt(totalFolders * aspect)));
-  const rows = Math.max(1, Math.ceil(totalFolders / columns));
-  const cellWidth = width / columns;
-  const cellDepth = depth / rows;
-
-  const minSpacingBase = clamp(Math.sqrt(areaPerFolder) * 0.36, 0.16, 0.4);
-  const softMinDistance = minSpacingBase;
-  const hardMinDistance = softMinDistance * 0.7;
-  const folderArea = (FOLDER_HALF_WIDTH * 2) * (FOLDER_HALF_DEPTH * 2);
-  const densityScale = clamp(areaPerFolder / (folderArea * 2.2), 0.62, 1.0);
-
-  const anchors = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < columns; col++) {
-      anchors.push({
-        x: bounds.minX + ((col + 0.5) * cellWidth),
-        z: bounds.minZ + ((row + 0.5) * cellDepth)
-      });
-    }
-  }
-
-  shuffle(anchors);
-
-  const maxJitterX = Math.min(0.28, cellWidth * 0.34);
-  const maxJitterZ = Math.min(0.28, cellDepth * 0.34);
-
-  const items = anchors.slice(0, totalFolders).map((anchor) => {
-    const angle = Math.PI / 2 + randomInRange(-MAX_YAW_OFFSET, MAX_YAW_OFFSET);
-    const extents = getRotatedHalfExtents(angle);
-    const jittered = {
-      x: anchor.x + randomInRange(-maxJitterX, maxJitterX),
-      z: anchor.z + randomInRange(-maxJitterZ, maxJitterZ)
-    };
-    const clamped = clampPointToBounds(jittered, bounds, extents);
-
-    return {
-      x: clamped.x,
-      z: clamped.z,
-      anchor,
-      angle,
-      extents
-    };
-  });
-
-  for (let iteration = 0; iteration < 8; iteration++) {
-    for (let i = 0; i < items.length; i++) {
-      for (let j = i + 1; j < items.length; j++) {
-        const dx = items[j].x - items[i].x;
-        const dz = items[j].z - items[i].z;
-        const dist = Math.sqrt((dx * dx) + (dz * dz));
-
-        const radiusI = Math.sqrt((items[i].extents.x ** 2) + (items[i].extents.z ** 2));
-        const radiusJ = Math.sqrt((items[j].extents.x ** 2) + (items[j].extents.z ** 2));
-        const targetPairDistance = Math.max(
-          hardMinDistance * 0.75,
-          ((radiusI + radiusJ) * 0.92 * densityScale) + (softMinDistance * 0.18)
-        );
-        const relaxedPairDistance = Math.max(hardMinDistance * 0.6, targetPairDistance * 0.72);
-
-        if (dist <= 0.0001 || dist >= targetPairDistance) {
-          continue;
-        }
-
-        const minDistance = dist < relaxedPairDistance ? relaxedPairDistance : targetPairDistance;
-        const overlap = minDistance - dist;
-        const push = overlap * 0.38;
-        const nx = dx / dist;
-        const nz = dz / dist;
-
-        const movedI = {
-          x: items[i].x - (nx * push),
-          z: items[i].z - (nz * push)
-        };
-        const movedJ = {
-          x: items[j].x + (nx * push),
-          z: items[j].z + (nz * push)
-        };
-
-        const clampedI = clampPointToBounds(movedI, bounds, items[i].extents);
-        const clampedJ = clampPointToBounds(movedJ, bounds, items[j].extents);
-
-        items[i].x = clampedI.x;
-        items[i].z = clampedI.z;
-        items[j].x = clampedJ.x;
-        items[j].z = clampedJ.z;
-      }
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const moved = {
-        x: items[i].x + ((items[i].anchor.x - items[i].x) * 0.16),
-        z: items[i].z + ((items[i].anchor.z - items[i].z) * 0.16)
-      };
-      const clamped = clampPointToBounds(moved, bounds, items[i].extents);
-      items[i].x = clamped.x;
-      items[i].z = clamped.z;
-    }
-  }
-
-  return items.map((item, index) => {
-    const angle = item.angle;
-    const tilt = randomInRange(-0.04, 0.04);
-    const stackLift = (index % 3) * 0.004;
-
-    return {
-      position: {
-        x: item.x,
-        y: bounds.y + stackLift,
-        z: item.z
-      },
-      rotation: {
-        x: tilt,
-        y: angle,
-        z: randomInRange(-0.035, 0.035)
-      }
-    };
-  });
-}
-
-export function setFolderScatterBounds(bounds = {}) {
-  const nextBounds = {
-    minX: Number.isFinite(bounds.minX) ? bounds.minX : scatterBounds.minX,
-    maxX: Number.isFinite(bounds.maxX) ? bounds.maxX : scatterBounds.maxX,
-    minZ: Number.isFinite(bounds.minZ) ? bounds.minZ : scatterBounds.minZ,
-    maxZ: Number.isFinite(bounds.maxZ) ? bounds.maxZ : scatterBounds.maxZ,
-    y: Number.isFinite(bounds.y) ? bounds.y : scatterBounds.y
-  };
-
-  if (nextBounds.minX >= nextBounds.maxX || nextBounds.minZ >= nextBounds.maxZ) {
-    console.warn('Invalid folder scatter bounds. Keeping previous bounds.', bounds);
-    return;
-  }
-
-  scatterBounds = nextBounds;
-  scatterLayoutCache.clear();
-}
-
-export function generateScatterTransform(index, tableHeight = -0.7, totalFolders = 5) {
-  const activeBounds = {
-    ...scatterBounds,
-    y: Number.isFinite(tableHeight) ? tableHeight : scatterBounds.y
-  };
-
-  const layoutKey = `${totalFolders}|${hashBounds(activeBounds)}`;
-  if (!scatterLayoutCache.has(layoutKey)) {
-    scatterLayoutCache.set(layoutKey, buildScatterLayout(totalFolders, activeBounds));
-  }
-
-  const layout = scatterLayoutCache.get(layoutKey);
-  return layout[index] || layout[layout.length - 1];
-}
-
-export function animateFolderToTable(folderData, folderIndex = 0, totalFolders = 1) {
+// Up, across, then drop: folders never pass through the table or the holder.
+function moveFolder(folderData, position, rotation, delay) {
+  const { mesh } = folderData;
+  gsap.killTweensOf(mesh.position); // drop any hover lift still running
   folderData.isAnimating = true;
-  const folder = folderData.mesh;
 
-  const timeline = gsap.timeline({
-    onComplete: () => {
-      folderData.isAnimating = false;
-      console.log(`Folder ${folderData.index} animation complete`);
-    }
+  gsap.timeline({ delay, onComplete: () => { folderData.isAnimating = false; } })
+    .to(mesh.position, { y: LIFT_Y, duration: 0.35, ease: 'power2.out' })
+    .to(mesh.position, { x: position.x, z: position.z, duration: 0.5, ease: 'power1.inOut' })
+    .to(mesh.rotation, { x: rotation.x, y: rotation.y, z: rotation.z, duration: 0.5, ease: 'power1.inOut' }, '<')
+    .to(mesh.position, { y: position.y, duration: 0.4, ease: 'power2.in' });
+}
+
+export function spreadFolders(folders) {
+  folders.forEach((folderData, i) => {
+    const slot = FOLDER_SLOTS[i];
+    moveFolder(folderData, { x: slot.x, y: TABLE_Y, z: slot.z }, { x: 0, y: (Math.PI / 2) + slot.yaw, z: 0 }, i * STAGGER);
   });
+}
 
-  const delay = folderIndex * 0.1;
-
-  timeline.to(folder.position, {
-    y: 10,
-    duration: 0.3,
-    ease: 'power2.in',
-    delay
+export function gatherFolders(folders) {
+  folders.forEach((folderData, i) => {
+    moveFolder(folderData, folderData.homePosition, folderData.homeRotation, i * STAGGER);
   });
+}
 
-  timeline.set(folder.position, {
-    x: Math.random() * 4 - 2,
-    y: 3,
-    z: 5
-  });
+// Lift and slide to the open spot squared up to the camera, then swing the front cover open around the spine.
+export function openFolderAnimation(folderData, onOpened) {
+  const { mesh } = folderData;
+  const cover = mesh.getObjectByName('frontSide');
+  gsap.killTweensOf([mesh.position, mesh.rotation, cover.rotation]);
+  folderData.isAnimating = true;
 
-  const tableHeight = -0.7;
-  const transform = generateScatterTransform(folderIndex, tableHeight, totalFolders);
+  gsap.timeline({ onComplete: () => { folderData.isAnimating = false; onOpened(); } })
+    .to(mesh.position, { x: OPEN_SPOT.x, y: TABLE_Y + OPEN_LIFT, z: OPEN_SPOT.z, duration: 0.6, ease: 'power2.inOut' })
+    .to(mesh.rotation, { y: Math.PI / 2, duration: 0.6, ease: 'power2.inOut' }, '<')
+    .to(cover.rotation, { y: -Math.PI, duration: 0.8, ease: 'power2.inOut' });
+}
 
-  timeline.to(folder.position, {
-    x: transform.position.x,
-    y: transform.position.y,
-    z: transform.position.z,
-    duration: 1.0,
-    ease: 'power2.out'
-  }, '+=0');
+export function closeFolderAnimation(folderData) {
+  const { mesh } = folderData;
+  const cover = mesh.getObjectByName('frontSide');
+  const slot = FOLDER_SLOTS[folderData.index];
+  gsap.killTweensOf([mesh.position, mesh.rotation, cover.rotation]);
+  folderData.isAnimating = true;
 
-  timeline.to(folder.rotation, {
-    x: transform.rotation.x,
-    y: transform.rotation.y,
-    z: transform.rotation.z,
-    duration: 1.0,
-    ease: 'power2.out'
-  }, '<');
+  gsap.timeline({ onComplete: () => { folderData.isAnimating = false; } })
+    .to(cover.rotation, { y: 0, duration: 0.6, ease: 'power2.inOut' })
+    .to(mesh.position, { x: slot.x, y: TABLE_Y, z: slot.z, duration: 0.6, ease: 'power2.inOut' })
+    .to(mesh.rotation, { y: (Math.PI / 2) + slot.yaw, duration: 0.6, ease: 'power2.inOut' }, '<');
 }
