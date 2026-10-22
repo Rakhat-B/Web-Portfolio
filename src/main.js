@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { gsap } from 'gsap';
+import { revealScene } from './features/loading/loadingScreen';
 import { createRenderer, createScene, createCamera, addLights, bindResize } from './core/scene';
 import { createGltfLoader } from './core/loaders';
 import { createCameraControls, flyToPose, CAMERA_POSES } from './features/camera/cameraController';
-import { addBoardItems, SURFACE } from './features/board/boardLayout';
+import { SURFACE } from './features/board/boardLayout';
 import { createBoardLinks } from './features/board/boardLinks';
 import { loadWorldAndFolderTemplate } from './features/world/worldLoader';
 import { createFolderClones } from './features/folders/folderSpawner';
@@ -30,14 +31,14 @@ let folderHover = null;
 let boardLinks = null;
 let foldersSpread = false;
 let clickZones = [];
-let view = 'overview';
+let view = 'loading'; // nothing to hover or click behind the loading screen
 document.body.dataset.view = view;
 
 // body[data-view] also decides which invisible nav strips the CSS shows.
-function goTo(name) {
+function goTo(name, duration) {
   view = name;
   document.body.dataset.view = name;
-  flyToPose(camera, controls, CAMERA_POSES[name]);
+  flyToPose(camera, controls, CAMERA_POSES[name], duration);
 }
 
 const folderClose = document.querySelector('.folder-close');
@@ -73,7 +74,8 @@ function closeFolder() {
 
 folderClose.addEventListener('click', closeFolder);
 
-// A board document flies up in front of the camera, then the PDF viewer takes its place.
+// A board document or note flies up in front of the camera, then the viewer takes its place:
+// a document's PDF, or a note's own drawing (crisp and unlit, away from the lamp it looks dim).
 const docViewer = document.querySelector('.doc-viewer');
 const docFrame = docViewer.querySelector('.doc-viewer__frame');
 const docDownload = docViewer.querySelector('.doc-viewer__download');
@@ -118,10 +120,15 @@ function openDoc(doc, object) {
 }
 
 function showDocViewer() {
+  const { doc } = openedDoc;
   fitDocViewer();
-  docFrame.src = `${openedDoc.doc.pdf}#view=FitH`;
-  docDownload.href = openedDoc.doc.pdf;
-  docDownload.download = openedDoc.doc.download;
+  docViewer.classList.toggle('doc-viewer--note', !doc.pdf);
+  docViewer.style.backgroundImage = doc.pdf ? '' : `url(${openedDoc.object.children[1].material.map.image.toDataURL()})`;
+  if (doc.pdf) {
+    docFrame.src = `${doc.pdf}#view=FitH`;
+    docDownload.href = doc.pdf;
+    docDownload.download = doc.download;
+  }
   docViewer.hidden = false;
   docViewer.querySelector('.doc-viewer__close').focus();
 }
@@ -169,13 +176,15 @@ holderButton.addEventListener('click', toggleFolders);
 
 // Overview: fly to whichever click zone the ray enters first.
 // Table: a spread folder opens, the holder toggles the folders.
-// Board: a badge opens its link, a document opens up close. Doc: a click outside closes it.
+// Board: a badge opens its link, a document or note opens up close. Doc: a click outside closes it.
 function onSceneClick() {
   if (view === 'board') {
     const hit = boardLinks?.itemAt(raycaster);
-    if (hit?.item.url) {
+    if (hit?.item.url?.startsWith('mailto:')) {
+      window.location.href = hit.item.url; // hands off to the mail app without a blank tab
+    } else if (hit?.item.url) {
       window.open(hit.item.url, '_blank', 'noopener');
-    } else if (hit?.item.pdf) {
+    } else if (hit?.item.pdf || hit?.item.note) {
       openDoc(hit.item, hit.object);
     }
     return;
@@ -300,7 +309,6 @@ async function bootstrap() {
     }
   });
 
-  addBoardItems(scene);
   boardLinks = createBoardLinks({
     scene,
     camera,
@@ -335,6 +343,9 @@ async function bootstrap() {
   });
 }
 
-bootstrap();
+// Shaders compile before the reveal, so the first frames of the glide into overview don't stutter.
+bootstrap()
+  .then(() => renderer.compileAsync(scene, camera))
+  .then(() => revealScene(() => goTo('overview', 2.4)));
 animate();
 window.scene = scene;

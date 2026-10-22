@@ -32,6 +32,158 @@ canvas {
   -moz-osx-font-smoothing: grayscale;
 }
 
+// Loading screen (loadingScreen.js): the scene loads behind frosted glass with warm light
+// drifting in it. When done, the blur clears and it fades away.
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background: radial-gradient(ellipse at 50% 45%, rgba(107, 74, 48, 0.55) 0%, rgba(12, 8, 6, 0.88) 75%);
+  backdrop-filter: blur(24px) saturate(1.2);
+  color: #f6ead8;
+  text-align: center;
+  transition:
+    opacity 1.2s ease,
+    backdrop-filter 1.2s ease;
+
+  // Two soft glows, like lamplight seen through the glass.
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 60vmax;
+    height: 60vmax;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.45;
+    pointer-events: none;
+    animation: loader-drift 14s ease-in-out infinite alternate;
+  }
+
+  &::before {
+    top: -20vmax;
+    left: -15vmax;
+    background: radial-gradient(circle, #e8a85a, transparent 65%);
+  }
+
+  &::after {
+    right: -20vmax;
+    bottom: -25vmax;
+    background: radial-gradient(circle, #b5542f, transparent 65%);
+    animation-delay: -7s;
+  }
+
+  &.is-done {
+    opacity: 0;
+    backdrop-filter: blur(0) saturate(1);
+    pointer-events: none;
+  }
+}
+
+.loader__content {
+  position: relative; // above the glows
+  transition: translate 1.2s ease;
+
+  .is-done & {
+    translate: 0 -16px;
+  }
+
+  > * {
+    animation: loader-rise 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+
+// VT323 (SIL Open Font License, latin subset from Google Fonts), close to the VCR OSD Mono look.
+@font-face {
+  font-family: 'VT323';
+  src: url('/fonts/VT323.woff2') format('woff2');
+  font-display: block;
+}
+
+// VCR on-screen-display type: a pixel mono font with a slight red/cyan split and a glow.
+.loader__content {
+  font-family: 'VT323', 'Courier New', monospace;
+  text-transform: uppercase;
+  text-shadow:
+    -0.04em 0 rgba(255, 60, 60, 0.45),
+    0.04em 0 rgba(60, 220, 255, 0.45),
+    0 0 18px rgba(255, 255, 255, 0.3);
+}
+
+.loader__title {
+  font-size: clamp(3.5rem, 13vw, 9rem);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.04em;
+}
+
+.loader__eyebrow {
+  display: block;
+  margin-bottom: 0.1em;
+  color: #e8b26a;
+  font-size: 0.4em;
+  letter-spacing: 0.12em;
+}
+
+.loader__by {
+  margin-top: 1.2rem;
+  font-size: clamp(1.1rem, 2.6vw, 1.5rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  animation-delay: 0.35s;
+}
+
+.loader__track {
+  width: min(280px, 60vw);
+  height: 2px;
+  margin: 2.5rem auto 0.8rem;
+  border-radius: 2px;
+  background: rgba(246, 234, 216, 0.15);
+  overflow: hidden;
+  animation-delay: 0.6s;
+}
+
+.loader__bar {
+  height: 100%;
+  background: linear-gradient(90deg, #e8a85a, #f6ead8);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.loader__percent {
+  font-size: 1.25rem;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+  animation-delay: 0.6s;
+}
+
+@keyframes loader-rise {
+  from {
+    opacity: 0;
+    translate: 0 18px;
+  }
+}
+
+@keyframes loader-drift {
+  to {
+    translate: 12vmax 8vmax;
+    scale: 1.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader::before,
+  .loader::after,
+  .loader__content > * {
+    animation: none;
+  }
+}
+
 // View nav (see index.html): invisible edge strips on the desk and board views. Each holds an
 // arrow circle near its edge that slides in when the mouse enters the strip.
 .view-nav button {
@@ -213,6 +365,10 @@ canvas {
 
 .screen-label--link {
   display: none;
+  padding: 0; // a note's label is a <button>
+  border: 0;
+  background: none;
+  font: inherit;
   color: inherit;
   text-decoration: none;
 
@@ -242,6 +398,16 @@ canvas {
   background: #fff;
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45), 0 20px 60px rgba(0, 0, 0, 0.5);
   animation: page-in 0.3s ease-out;
+}
+
+// A note has no PDF: main.js sets its drawing as the background instead.
+.doc-viewer--note {
+  background-size: 100% 100%;
+
+  .doc-viewer__frame,
+  .doc-viewer__download {
+    display: none;
+  }
 }
 
 .doc-viewer__frame {

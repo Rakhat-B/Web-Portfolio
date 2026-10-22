@@ -27,7 +27,9 @@ export const CAMERA_POSES = {
     }
   },
   table: { position: [0.66, 10.68, -0.01], target: [-2.83, 4.08, -0.11] },
-  board: { position: [0.01, 7.1, -0.82], target: [0.29, 6.97, -4.88] }
+  board: { position: [0.01, 7.1, -0.82], target: [0.29, 6.97, -4.88] },
+  // Behind the loading screen: further out and a little round, so the reveal glides into overview.
+  intro: { position: [10.5, 17.5, 19.5], target: [-2, 3, -2] }
 };
 
 export function setCameraPose(camera, controls, pose) {
@@ -41,9 +43,9 @@ export function setCameraPose(camera, controls, pose) {
 let flight = null;
 
 // Smoothly moves camera and look-at point together, then locks in the pose.
-export function flyToPose(camera, controls, pose) {
+export function flyToPose(camera, controls, pose, duration = 1.2) {
   const { position, target } = pose;
-  const tween = { duration: 1.2, ease: 'power2.inOut' };
+  const tween = { duration, ease: 'power2.inOut' };
 
   flight?.kill(); // a new click mid-flight takes over from wherever we are
   Object.assign(controls, NO_LIMITS); // so controls.update() can't clamp mid-flight
@@ -58,6 +60,6 @@ export function createCameraControls(camera, domElement) {
   const controls = new OrbitControls(camera, domElement);
   controls.enableDamping = true;
   controls.enablePan = false;
-  setCameraPose(camera, controls, CAMERA_POSES.overview);
+  setCameraPose(camera, controls, CAMERA_POSES.intro);
   return controls;
 }

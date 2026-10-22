@@ -2,13 +2,33 @@ import * as THREE from 'three';
 import { gsap } from 'gsap';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 import { SURFACE } from './boardLayout';
+import { ABOUT } from '../../about';
 
 // Interactive items pinned to the board, in cork-local units (see boardLayout.js):
-// link badges open a URL, documents open their PDF up close (main.js).
+// link badges open a URL, documents open their PDF up close and notes fly up to be read (main.js).
 export const BOARD_LINKS = [
   { icon: 'github', url: 'https://github.com/Rakhat-B', label: 'git/Rakhat-B', x: 1.3, y: -0.45 },
-  { icon: 'linkedin', url: 'https://www.linkedin.com/in/rakhat-bektas66', label: 'rakhat-bektas66', x: 1.85, y: -0.45 }
+  { icon: 'linkedin', url: 'https://www.linkedin.com/in/rakhat-bektas66', label: 'rakhat-bektas66', x: 1.85, y: -0.45 },
+  { icon: 'email', url: `mailto:${ABOUT.email}`, label: ABOUT.email, x: 1.3, y: -0.95 }
 ];
+
+// Notes drawn from src/about.js: `lines` are paragraphs (`gap` apart, in font sizes).
+export const BOARD_NOTES = [
+  {
+    note: true, margin: 0, label: 'About Me', x: -0.05, y: 0.45, w: 1.7, h: 1.1, rot: -0.01,
+    background: '#fffaf0', title: ABOUT.name, subtitle: ABOUT.role, lines: ABOUT.bio, gap: 0.6
+  },
+  {
+    note: true, margin: 0, label: 'Skills', x: -1.6, y: -0.8, w: 0.8, h: 0.6, rot: -0.04,
+    background: '#ffe27a', title: 'Skills', lines: ABOUT.skills.map((skill) => `• ${skill}`), gap: 0
+  }
+];
+
+// Polaroid: the picture is w × h, framed by `margin` with a deeper `bottomMargin`.
+const BOARD_PHOTO = {
+  image: ABOUT.photo, label: ABOUT.name, x: -1.55, y: 0.4, w: 0.85, h: 0.95, rot: 0.03,
+  paperColor: 0xfbfbf8, margin: 0.05, bottomMargin: 0.25, cover: true
+};
 
 // Documents pinned to the board as images (page 1 of each PDF, see public/docs/). Each image
 // is fitted into its w × h box keeping its own shape; clicking opens the PDF up close.
@@ -34,6 +54,16 @@ const ICONS = {
     color: 0x0a66c2,
     backing: (s) => new THREE.PlaneGeometry(21 * s, 21 * s),
     path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.71 1.637-1.452 3.37-1.452 3.601 0 4.267 2.37 4.267 4.892v6.251zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z'
+  },
+  // A rounded square with an envelope cut out: its flap and body, split by the V of the fold.
+  // The holes wind the other way round from the square.
+  email: {
+    size: 24,
+    color: 0xc0392b,
+    backing: (s) => new THREE.PlaneGeometry(21 * s, 21 * s),
+    path: 'M2.5 0h19A2.5 2.5 0 0 1 24 2.5v19a2.5 2.5 0 0 1-2.5 2.5h-19A2.5 2.5 0 0 1 0 21.5v-19A2.5 2.5 0 0 1 2.5 0z' +
+      'M5.25 6.5L12 11.5625L18.75 6.5z' +
+      'M4 7.4375V17.5H20V7.4375L12 13.4375z'
   }
 };
 
@@ -70,14 +100,16 @@ function makePuck({ size, color, backing, path }) {
   return puck;
 }
 
-// A sheet of paper showing the document's first page, with a thin off-white edge.
-// It starts at its box size and is resized to the image's shape once that loads.
-function makeDoc(doc) {
-  const paperMaterial = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.9 });
+// A sheet of paper showing an image (a document's first page, a photo) or a drawn `texture`,
+// framed by its paper edge. The image is fitted into its w × h box keeping its shape (the
+// sheet resizes once it loads), or with `cover` cropped to fill the box.
+function makeSheet({ image, w, h, paperColor = 0xf4f1ea, margin = 0.015, bottomMargin = margin, cover = false }, texture) {
+  const paperMaterial = new THREE.MeshStandardMaterial({ color: paperColor, roughness: 0.9 });
   const pageMaterial = new THREE.MeshStandardMaterial({ roughness: 0.85 });
   const paper = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), paperMaterial);
   const page = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), pageMaterial);
   page.position.z = 0.002;
+  paper.position.y = (margin - bottomMargin) / 2;
 
   const sheet = new THREE.Group();
   sheet.add(paper, page);
@@ -86,35 +118,124 @@ function makeDoc(doc) {
     child.receiveShadow = true;
   });
 
-  const setSize = (w, h) => {
-    page.scale.set(w, h, 1);
-    paper.scale.set(w + 0.03, h + 0.03, 1);
-    sheet.userData.size = { w, h };
-    sheet.userData.halfWidth = w / 2;
+  const setSize = (pageW, pageH) => {
+    const fullW = pageW + 2 * margin;
+    const fullH = pageH + margin + bottomMargin;
+    page.scale.set(pageW, pageH, 1);
+    paper.scale.set(fullW, fullH, 1);
+    sheet.userData.size = { w: pageW, h: pageH };
+    sheet.userData.halfWidth = fullW / 2;
     // A sheet lies almost flat on the cork: tilt only as far as its corners stay in front of it.
-    sheet.userData.maxTilt = Math.min(MAX_TILT, HOVER_FLOAT / (w / 2 + h / 2));
-    sheet.userData.labelOffset = h / 2 + 0.07;
+    sheet.userData.maxTilt = Math.min(MAX_TILT, HOVER_FLOAT / (fullW / 2 + fullH / 2));
+    sheet.userData.labelOffset = pageH / 2 + bottomMargin + 0.055;
   };
-  setSize(doc.w, doc.h);
+  setSize(w, h);
 
-  new THREE.TextureLoader().load(doc.image, (texture) => {
-    texture.colorSpace = THREE.SRGBColorSpace;
-    pageMaterial.map = texture;
+  const show = (map) => {
+    map.colorSpace = THREE.SRGBColorSpace;
+    pageMaterial.map = map;
     pageMaterial.needsUpdate = true;
-    const aspect = texture.image.width / texture.image.height;
-    setSize(Math.min(doc.w, doc.h * aspect), Math.min(doc.h, doc.w / aspect));
-  });
+    const ratio = (map.image.width / map.image.height) / (w / h); // > 1: wider than the box
+    if (cover) {
+      map.repeat.set(Math.min(1, 1 / ratio), Math.min(1, ratio));
+      map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) / 2);
+    } else {
+      setSize(Math.min(w, w * ratio), Math.min(h, h / ratio));
+    }
+  };
+  if (texture) {
+    show(texture);
+  } else {
+    new THREE.TextureLoader().load(image, show);
+  }
   return sheet;
 }
 
-// Label under a board item; it is also its keyboard-reachable link (a doc's opens the PDF).
-// main.js positions it.
-function makeLabel({ url, pdf, label }) {
-  const el = document.createElement('a');
+const NOTE_PX = 1024; // canvas px per world unit: sharp even when a note is flown up close
+const NOTE_FONT = 'Georgia, "Times New Roman", serif';
+
+function wrapText(ctx, text, maxWidth) {
+  const rows = [''];
+  text.split(' ').forEach((word) => {
+    const row = rows[rows.length - 1];
+    const next = row ? `${row} ${word}` : word;
+    if (row && ctx.measureText(next).width > maxWidth) {
+      rows.push(word);
+    } else {
+      rows[rows.length - 1] = next;
+    }
+  });
+  return rows;
+}
+
+// Rows of text (with baselines) for a note at body font `size` px.
+function layoutNote(ctx, { title, subtitle, lines, gap }, size, maxWidth) {
+  const rows = [];
+  let y = 0;
+  const add = (text, font, lineHeight) => {
+    ctx.font = font;
+    wrapText(ctx, text, maxWidth).forEach((row) => {
+      y += lineHeight;
+      rows.push({ text: row, font, y: y - lineHeight * 0.28 });
+    });
+  };
+  if (title) add(title, `bold ${size * 1.6}px ${NOTE_FONT}`, size * 2);
+  if (subtitle) add(subtitle, `italic ${size}px ${NOTE_FONT}`, size * 1.4);
+  y += size * 0.5;
+  lines.forEach((line, i) => {
+    y += i ? size * gap : 0;
+    add(line, `${size}px ${NOTE_FONT}`, size * 1.4);
+  });
+  return { rows, height: y };
+}
+
+// A note's paper with its text drawn on, shrinking the text until it fits.
+function makeNoteTexture(note) {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(note.w * NOTE_PX);
+  canvas.height = Math.round(note.h * NOTE_PX);
+  const ctx = canvas.getContext('2d');
+  const pad = 0.08 * NOTE_PX;
+  const maxWidth = canvas.width - 2 * pad;
+
+  let size = 0.05 * NOTE_PX;
+  let layout = layoutNote(ctx, note, size, maxWidth);
+  while (layout.height > canvas.height - 2 * pad && size > 12) {
+    size *= 0.92;
+    layout = layoutNote(ctx, note, size, maxWidth);
+  }
+
+  ctx.fillStyle = note.background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#2a2a2a';
+  layout.rows.forEach(({ text, font, y }) => {
+    ctx.font = font;
+    ctx.fillText(text, pad, pad + y);
+  });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 8; // three.js caps it at what the GPU supports
+  return texture;
+}
+
+// Stands in on the polaroid until ABOUT.photo is set.
+const photoPlaceholder = () => makeNoteTexture({
+  w: BOARD_PHOTO.w, h: BOARD_PHOTO.h, background: '#c9d6df', title: 'Photo', lines: ['Set ABOUT.photo in src/about.js'], gap: 0
+});
+
+// Label under a board item, and its keyboard-reachable control: a link for badges and docs
+// (a doc's opens the PDF), a button for notes, plain text for the photo. main.js positions it.
+function makeLabel({ url, pdf, note, label }) {
+  const href = url ?? pdf;
+  const el = document.createElement(href ? 'a' : note ? 'button' : 'div');
   el.className = 'screen-label screen-label--link';
-  el.href = url ?? pdf;
-  el.target = '_blank';
-  el.rel = 'noopener';
+  if (href) {
+    el.href = href;
+    if (!href.startsWith('mailto:')) {
+      el.target = '_blank';
+      el.rel = 'noopener';
+    }
+  }
   el.innerHTML = '<span class="tip"></span>';
   el.firstChild.textContent = label;
   document.body.appendChild(el);
@@ -142,13 +263,15 @@ export function createBoardLinks({ scene, camera, isActive, onOpenDoc }) {
       puck.userData.labelOffset = 0.26;
       return puck;
     }),
-    ...BOARD_DOCS.map((doc) => {
-      const sheet = place(makeDoc(doc), doc, docZ);
-      // A click on a doc's label opens the viewer; the href stays for keyboard/new-tab use.
+    place(makeSheet(BOARD_PHOTO, BOARD_PHOTO.image ? null : photoPlaceholder()), BOARD_PHOTO, docZ),
+    ...[...BOARD_DOCS, ...BOARD_NOTES].map((item) => {
+      const sheet = place(makeSheet(item, item.note ? makeNoteTexture(item) : null), item, docZ);
+      // A click on a doc's label opens the viewer (the href stays for keyboard/new-tab use);
+      // a note's label always opens it up close.
       sheet.userData.label.addEventListener('click', (event) => {
-        if (event.detail > 0) {
+        if (item.note || event.detail > 0) {
           event.preventDefault();
-          onOpenDoc(doc, sheet);
+          onOpenDoc(item, sheet);
         }
       });
       return sheet;
