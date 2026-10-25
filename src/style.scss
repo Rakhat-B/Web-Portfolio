@@ -401,6 +401,24 @@ canvas {
 }
 
 // A note has no PDF: main.js sets its drawing as the background instead.
+// An opened folder's document: centred, A4-shaped, leaving room for the buttons below.
+.doc-viewer--centered {
+  inset: 0 0 12vh;
+  margin: auto;
+  width: min(90vw, 80vh * 0.707);
+  height: 80vh;
+}
+
+// An opened folder's slides: centred and 16:9.
+.doc-viewer--centered.doc-viewer--slides {
+  width: min(90vw, 80vh * 16 / 9);
+  height: min(80vh, 90vw * 9 / 16);
+
+  .doc-viewer__download {
+    display: none;
+  }
+}
+
 .doc-viewer--note {
   background-size: 100% 100%;
 
@@ -479,6 +497,120 @@ canvas {
 .page__placeholder--tall {
   height: 520px;
   margin-top: 0;
+}
+
+// Left page: a column, so the slides sit at the bottom and a long description scrolls.
+.page--left {
+  display: flex;
+  flex-direction: column;
+}
+
+.page__description {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.page__audio {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.page__links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+// A project's extra documents (the first fills the right page), as small links.
+.page__docs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.page__doc {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #0b57d0;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.page__doc {
+  font-size: 22px;
+  color: #555;
+}
+
+.page__docs-caption {
+  margin-top: 8px;
+  font-size: 18px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+// Google Slides player, 16:9 at the bottom of the left page.
+.page__slides-wrap {
+  position: relative;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.page__slides {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+}
+
+// The main PDF covers the right page, just inside its edges.
+.page__pdf-wrap {
+  position: absolute;
+  inset: 20px;
+}
+
+.page__pdf {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+// "Full view" pill over the slides and the PDF.
+.page__expand {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 8px 16px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
+}
+
+.page__slides-wrap .page__expand {
+  top: 36px; // below the wrap's top padding
+}
+
+.page :is(.page__audio, .page__docs, .page__github, .page__slides-wrap, .page__pdf-wrap, .page__pdf-empty)[hidden] {
+  display: none;
 }
 
 .page__link {

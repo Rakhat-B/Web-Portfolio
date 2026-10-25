@@ -35,6 +35,59 @@ export function setPagesVisible(visible) {
   rightPage.visible = visible;
 }
 
+// Puts a project from src/projects.js on the pages; missing pieces are hidden.
+// The first document is shown on the right page; `onOpenPdf(doc)` runs when one of the
+// others' links is clicked.
+export function fillPages(project, onOpenPdf) {
+  const $ = (selector) => document.querySelector(selector);
+  $('.page__title').textContent = project.title;
+  $('.page__description').textContent = project.description || 'Description coming soon.';
+
+  const audio = $('.page__audio');
+  audio.hidden = !project.audio;
+  if (project.audio) {
+    audio.src = project.audio;
+  } else {
+    audio.removeAttribute('src');
+  }
+
+  // The main document fills the right page; the others are links under "More documents".
+  const [mainDoc, ...extraDocs] = project.documents ?? [];
+  $('.page__pdf-wrap').hidden = !mainDoc;
+  $('.page__pdf-empty').hidden = Boolean(mainDoc);
+  $('.page__pdf').src = mainDoc ? `${mainDoc.pdf}#toolbar=0&view=FitH` : 'about:blank';
+
+  const docList = $('.page__docs');
+  docList.hidden = !extraDocs.length;
+  docList.replaceChildren(...extraDocs.flatMap((doc, i) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'page__doc';
+    button.textContent = `Read the ${doc.title} (PDF)`;
+    button.addEventListener('click', () => onOpenPdf(doc));
+    if (i !== 0) {
+      return [button];
+    }
+    const caption = document.createElement('p');
+    caption.className = 'page__docs-caption';
+    caption.textContent = 'More documents:';
+    return [caption, button];
+  }));
+  const github = $('.page__github');
+  github.hidden = !project.github;
+  github.href = project.github || '';
+
+  $('.page__slides-wrap').hidden = !project.slides;
+  $('.page__slides').src = project.slides || 'about:blank';
+}
+
+// Stops the voice-over and the slides' videos, and unloads the PDF, when the folder closes.
+export function stopPageMedia() {
+  document.querySelector('.page__audio').pause();
+  document.querySelector('.page__slides').src = 'about:blank';
+  document.querySelector('.page__pdf').src = 'about:blank';
+}
+
 export function renderPages(scene, camera) {
   cssRenderer.render(scene, camera);
 }

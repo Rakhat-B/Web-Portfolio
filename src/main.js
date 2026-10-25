@@ -11,7 +11,7 @@ import { createFolderClones } from './features/folders/folderSpawner';
 import {
   spreadFolders, gatherFolders, openFolderAnimation, closeFolderAnimation, TABLE_Y, OPEN_LIFT, OPEN_SPOT
 } from './features/folders/folderAnimations';
-import { attachPages, setPagesVisible, renderPages } from './features/folders/folderPages';
+import { attachPages, setPagesVisible, renderPages, fillPages, stopPageMedia } from './features/folders/folderPages';
 import { PROJECTS } from './projects';
 import { createFolderInteraction } from './features/folders/folderInteractions';
 import './style.scss';
@@ -58,7 +58,7 @@ function openFolder(folderData) {
   openedFolder = folderData;
   view = 'folder';
   document.body.dataset.view = view;
-  document.querySelector('.page__title').textContent = PROJECTS[folderData.index].title;
+  fillPages(PROJECTS[folderData.index], (doc) => openPdf(PROJECTS[folderData.index], doc));
   attachPages(folderData);
   openFolderAnimation(folderData, () => setPagesVisible(true));
   flyToPose(camera, controls, openedFolderPose());
@@ -66,6 +66,8 @@ function openFolder(folderData) {
 }
 
 function closeFolder() {
+  closeViewer();
+  stopPageMedia();
   setPagesVisible(false);
   closeFolderAnimation(openedFolder);
   openedFolder = null;
@@ -121,6 +123,7 @@ function openDoc(doc, object) {
 
 function showDocViewer() {
   const { doc } = openedDoc;
+  docViewer.classList.remove('doc-viewer--centered', 'doc-viewer--slides');
   fitDocViewer();
   docViewer.classList.toggle('doc-viewer--note', !doc.pdf);
   docViewer.style.backgroundImage = doc.pdf ? '' : `url(${openedDoc.object.children[1].material.map.image.toDataURL()})`;
@@ -146,14 +149,63 @@ function closeDoc() {
     .to(object.rotation, { x: 0, y: 0, z: doc.rot, ...tween }, '<');
 }
 
-docViewer.querySelector('.doc-viewer__close').addEventListener('click', closeDoc);
+// One of an opened folder's documents: the same viewer, centred on screen (nothing flies up).
+function openPdf(project, doc) {
+  docViewer.style.cssText = '';
+  docViewer.style.backgroundImage = '';
+  docViewer.classList.remove('doc-viewer--note', 'doc-viewer--slides');
+  docViewer.classList.add('doc-viewer--centered');
+  docFrame.src = `${doc.pdf}#view=FitH`;
+  docDownload.href = doc.pdf;
+  docDownload.download = `${project.title}_${doc.title}.pdf`.replace(/[^\w.]+/g, '_');
+  docViewer.hidden = false;
+  docViewer.querySelector('.doc-viewer__close').focus();
+}
+
+// An opened folder's slides, big and 16:9 in the same viewer (no download).
+function openSlides(project) {
+  docViewer.style.cssText = '';
+  docViewer.classList.remove('doc-viewer--note');
+  docViewer.classList.add('doc-viewer--centered', 'doc-viewer--slides');
+  docFrame.src = project.slides;
+  docViewer.hidden = false;
+  docViewer.querySelector('.doc-viewer__close').focus();
+}
+
+// "Full view" buttons on the opened folder's pages.
+document.querySelector('.page__expand--pdf').addEventListener('click', () => {
+  const project = openedFolder && PROJECTS[openedFolder.index];
+  if (project?.documents?.[0]) {
+    openPdf(project, project.documents[0]);
+  }
+});
+document.querySelector('.page__expand--slides').addEventListener('click', () => {
+  const project = openedFolder && PROJECTS[openedFolder.index];
+  if (project?.slides) {
+    openSlides(project);
+  }
+});
+
+// Board documents fly back on close; a project's document just disappears.
+function closeViewer() {
+  if (openedDoc) {
+    closeDoc();
+  } else if (!docViewer.hidden) {
+    docViewer.hidden = true;
+    docFrame.src = 'about:blank';
+  }
+}
+
+docViewer.querySelector('.doc-viewer__close').addEventListener('click', closeViewer);
 window.addEventListener('resize', () => openedDoc && !docViewer.hidden && fitDocViewer());
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') {
     return;
   }
-  if (view === 'folder') {
+  if (view === 'folder' && !docViewer.hidden) {
+    closeViewer(); // the document first, then the folder on the next Esc
+  } else if (view === 'folder') {
     closeFolder();
   } else if (view === 'doc' && openedDoc) {
     closeDoc();
@@ -194,6 +246,11 @@ function onSceneClick() {
     if (openedDoc && !docViewer.hidden) {
       closeDoc();
     }
+    return;
+  }
+
+  if (view === 'folder') {
+    closeViewer(); // a click outside an open document closes it
     return;
   }
 

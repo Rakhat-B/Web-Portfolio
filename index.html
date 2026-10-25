@@ -32,7 +32,7 @@
     <div class="screen-label screen-label--folder" aria-hidden="true"><span class="tip"></span></div>
     <!-- Board document viewer; main.js sizes it over the sheet that flew up to the camera. -->
     <div class="doc-viewer" hidden>
-      <iframe class="doc-viewer__frame" title="Document"></iframe>
+      <iframe class="doc-viewer__frame" title="Document" allow="autoplay; fullscreen" allowfullscreen></iframe>
       <div class="doc-viewer__bar">
         <a class="doc-viewer__download">Download</a>
         <button class="doc-viewer__close" aria-label="Close document">×</button>
@@ -41,14 +41,27 @@
     <button class="folder-close" aria-label="Close project">×</button>
     <!-- Opened-folder pages; folderPages.js moves them onto the folder in 3D. -->
     <div hidden>
+      <!-- Filled from src/projects.js when a folder opens (fillPages in folderPages.js). -->
       <article class="page page--left">
-        <h2 class="page__title">Project title</h2>
-        <p>Short description of the project goes here.</p>
-        <div class="page__placeholder">Audio</div>
+        <h2 class="page__title"></h2>
+        <p class="page__description"></p>
+        <audio class="page__audio" controls preload="none"></audio>
+        <div class="page__links">
+          <div class="page__docs"></div>
+          <a class="page__link page__github" target="_blank" rel="noopener">GitHub →</a>
+        </div>
+        <div class="page__slides-wrap">
+          <iframe class="page__slides" title="Project slides" allow="autoplay; fullscreen" allowfullscreen></iframe>
+          <button class="page__expand page__expand--slides" type="button">⤢ Full view</button>
+        </div>
       </article>
+      <!-- The project's main PDF (its first document), readable right in the folder. -->
       <article class="page page--right">
-        <div class="page__placeholder page__placeholder--tall">PDF preview</div>
-        <a class="page__link" href="#">GitHub →</a>
+        <div class="page__pdf-wrap">
+          <iframe class="page__pdf" title="Project report"></iframe>
+          <button class="page__expand page__expand--pdf" type="button">⤢ Full view</button>
+        </div>
+        <div class="page__placeholder page__pdf-empty">Report coming soon</div>
       </article>
     </div>
     <script type="module" src="/src/main.js"></script>
