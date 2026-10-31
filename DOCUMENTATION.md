@@ -218,12 +218,25 @@ On click, raycaster checks all scene intersections:
 
 Interaction module exposes cleanup function that removes listeners and disposes hover collider resources.
 
+## Music module
+
+- src/features/music/musicPlayer.js
+
+Responsibilities:
+
+- Loop the background track from public/audio/music.mp3 (MUSIC_SRC)
+- Start it on the visitor's first click or key press, fading in (browsers block sound before a gesture)
+- Wire the top-left controls in index.html: mute button and volume slider
+- Remember mute and volume in localStorage
+- Keep the controls hidden if the track is missing or fails to load
+
 ## 5) Asset Pipeline
 
 Assets are loaded from:
 
 - public/models/world_scene.glb
 - public/models/folder_template.glb
+- public/audio/music.mp3 (background music, optional)
 
 Why this matters:
 

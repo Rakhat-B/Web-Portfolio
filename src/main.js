@@ -6,6 +6,7 @@ import { createGltfLoader } from './core/loaders';
 import { createCameraControls, flyToPose, CAMERA_POSES } from './features/camera/cameraController';
 import { SURFACE } from './features/board/boardLayout';
 import { createBoardLinks } from './features/board/boardLinks';
+import { createBoardLight } from './features/board/boardLight';
 import { loadWorldAndFolderTemplate } from './features/world/worldLoader';
 import { createFolderClones } from './features/folders/folderSpawner';
 import {
@@ -14,14 +15,17 @@ import {
 import { attachPages, setPagesVisible, renderPages, fillPages, stopPageMedia } from './features/folders/folderPages';
 import { PROJECTS } from './projects';
 import { createFolderInteraction } from './features/folders/folderInteractions';
+import { createMusicPlayer } from './features/music/musicPlayer';
 import './style.scss';
 
 const renderer = createRenderer();
 const scene = createScene();
 const camera = createCamera();
 const controls = createCameraControls(camera, renderer.domElement);
-addLights(scene);
+const { lamp } = addLights(scene);
+const boardLight = createBoardLight(scene, lamp);
 bindResize(camera, renderer);
+createMusicPlayer();
 
 const gltfLoader = createGltfLoader();
 const raycaster = new THREE.Raycaster();
@@ -38,6 +42,11 @@ document.body.dataset.view = view;
 function goTo(name, duration) {
   view = name;
   document.body.dataset.view = name;
+  if (name === 'board') {
+    boardLight.turnOn();
+  } else {
+    boardLight.turnOff();
+  }
   flyToPose(camera, controls, CAMERA_POSES[name], duration);
 }
 

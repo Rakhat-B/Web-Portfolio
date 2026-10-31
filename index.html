@@ -39,6 +39,17 @@
       </div>
     </div>
     <button class="folder-close" aria-label="Close project">×</button>
+    <!-- Background music controls (musicPlayer.js): hidden until the track loads. -->
+    <div class="music" role="group" aria-label="Background music" hidden>
+      <button class="music__toggle" type="button" aria-label="Mute music" aria-pressed="false">
+        <svg class="music__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="music__speaker" d="M3 9.5h4l5-4v13l-5-4H3z" />
+          <path class="music__waves" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+          <path class="music__cross" d="M16 9.5l5 5M21 9.5l-5 5" />
+        </svg>
+      </button>
+      <input class="music__volume" type="range" min="0" max="100" step="1" aria-label="Music volume" />
+    </div>
     <!-- Opened-folder pages; folderPages.js moves them onto the folder in 3D. -->
     <div hidden>
       <!-- Filled from src/projects.js when a folder opens (fillPages in folderPages.js). -->

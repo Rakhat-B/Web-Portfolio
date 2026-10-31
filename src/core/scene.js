@@ -24,7 +24,7 @@ export function addLights(scene) {
   const ambient = new THREE.AmbientLight(0xffffff, 0.15);
   scene.add(ambient);
 
-  const lamp = new THREE.PointLight(0xfff7e8, 50, 15, 2);
+  const lamp = new THREE.PointLight(0xfff7e8, 35, 15, 2);
   lamp.position.set(-3.5, 6.5, -2.1);
   lamp.castShadow = true;
   lamp.shadow.camera.near = 0.1;
@@ -37,6 +37,8 @@ export function addLights(scene) {
   fillLight.position.set(-3.5, 6.5, -2.1);
   fillLight.castShadow = false;
   scene.add(fillLight);
+
+  return { lamp };
 }
 
 export function bindResize(camera, renderer) {

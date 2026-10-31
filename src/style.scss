@@ -628,3 +628,96 @@ canvas {
 [data-view='folder'] .folder-close {
   display: grid;
 }
+
+// Background music controls (musicPlayer.js), top-left: a glassy pill with the mute button.
+// With a mouse the volume slider slides out on hover or focus; touch screens always show it.
+.music {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 3; // above the document viewer and its dimming
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(4px);
+  color: #fff;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.music__toggle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+}
+
+.music__icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.music__speaker {
+  fill: currentColor;
+}
+
+.music__cross,
+.music.is-muted .music__waves {
+  display: none;
+}
+
+.music.is-muted .music__cross {
+  display: inline;
+}
+
+.music__volume {
+  width: 100px;
+  margin: 0 12px 0 6px;
+  accent-color: #e8b26a;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .music__volume {
+    width: 0;
+    margin: 0;
+    opacity: 0;
+    transition:
+      width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      margin 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.25s ease;
+  }
+
+  .music:is(:hover, :focus-within) .music__volume {
+    width: 100px;
+    margin: 0 12px 0 6px;
+    opacity: 1;
+  }
+}
