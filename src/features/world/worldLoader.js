@@ -1,7 +1,8 @@
 import * as THREE from 'three';
+import { publicUrl } from '../../core/paths';
 
-const WORLD_URL = '/models/world_scene.glb';
-const FOLDER_URL = '/models/folder_template.glb';
+const WORLD_URL = publicUrl('/models/world_scene.glb');
+const FOLDER_URL = publicUrl('/models/folder_template.glb');
 
 function prepareWorldMesh(root, scene, onFileHolderFound) {
   root.traverse((child) => {

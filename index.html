@@ -2,11 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>web-portfolio</title>
     <!-- Loading screen font, fetched up front so the title never shows in a fallback. -->
     <link rel="preload" href="/fonts/VT323.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Until src/style.scss arrives (in dev, Vite sends it with the JS a moment after the page):
+         a dark, empty page instead of unstyled buttons and links on white. style.scss lifts it. -->
+    <style>
+      html { background: #0c0806; }
+      body { visibility: hidden; }
+    </style>
   </head>
   <body>
     <!-- Loading screen over the scene while it loads; loadingScreen.js fills the bar, then clears it away. -->
@@ -30,9 +35,45 @@
     <button class="hotspot hotspot--holder" data-in="table" data-anchor="-2.84 4.89 2.8"><span class="tip">Show Projects</span></button>
     <!-- Name of the hovered folder on the desk; the text comes from src/projects.js. -->
     <div class="screen-label screen-label--folder" aria-hidden="true"><span class="tip"></span></div>
+    <!-- Portrait screens only (core/layout.js); the CSS shows each in its view and hides the desktop nav above. -->
+    <nav class="tiles" aria-label="Sections">
+      <button class="tile" type="button" data-goto="table">
+        <svg class="tile__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.2l2 2h8.8A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+        </svg>
+        Projects
+      </button>
+      <button class="tile" type="button" data-goto="board">
+        <svg class="tile__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="15" rx="1.5" />
+          <rect x="6" y="7" width="5" height="6" rx="0.5" />
+          <path d="M14 8.5h4M14 11.5h4M14 14.5h2.5" />
+        </svg>
+        Info Board
+      </button>
+    </nav>
+    <button class="room-back" type="button" data-goto="overview" aria-label="Back to the room">×</button>
+    <!-- Folder ring / board items: the one in front, with arrows to step through them (main.js). -->
+    <div class="carousel-bar">
+      <button class="carousel-bar__step" type="button" data-step="-1" aria-label="Previous">‹</button>
+      <p class="carousel-bar__label" aria-live="polite">
+        <span class="carousel-bar__name"></span>
+        <span class="carousel-bar__hint"></span>
+      </p>
+      <button class="carousel-bar__step" type="button" data-step="1" aria-label="Next">›</button>
+    </div>
+    <!-- Opened folder, one page at a time. -->
+    <div class="page-switch">
+      <button class="page-switch__step" type="button" data-page="left" aria-label="Left page">‹</button>
+      <span class="page-switch__dot" data-page="left"></span>
+      <span class="page-switch__dot" data-page="right"></span>
+      <button class="page-switch__step" type="button" data-page="right" aria-label="Right page">›</button>
+    </div>
     <!-- Board document viewer; main.js sizes it over the sheet that flew up to the camera. -->
     <div class="doc-viewer" hidden>
       <iframe class="doc-viewer__frame" title="Document" allow="autoplay; fullscreen" allowfullscreen></iframe>
+      <!-- Portrait: a board note's text, readable on a phone. -->
+      <div class="doc-viewer__text"></div>
       <div class="doc-viewer__bar">
         <a class="doc-viewer__download">Download</a>
         <button class="doc-viewer__close" aria-label="Close document">×</button>
@@ -73,6 +114,11 @@
           <button class="page__expand page__expand--pdf" type="button">⤢ Full view</button>
         </div>
         <div class="page__placeholder page__pdf-empty">Report coming soon</div>
+        <!-- Portrait: phones can't show the PDF in the page, so this opens it in a new tab. -->
+        <button class="page__pdf-card" type="button" hidden>
+          <span class="page__pdf-card-title"></span>
+          <span class="page__pdf-card-hint">Opens the PDF</span>
+        </button>
       </article>
     </div>
     <script type="module" src="/src/main.js"></script>

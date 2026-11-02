@@ -230,6 +230,35 @@ Responsibilities:
 - Remember mute and volume in localStorage
 - Keep the controls hidden if the track is missing or fails to load
 
+## Portrait / phone mode
+
+- src/core/layout.js
+  - One switch for the whole site: matchMedia('(orientation: portrait)'), i.e. the screen is taller than wide.
+  - Landscape (desktops, phones held sideways) keeps the desktop experience unchanged.
+  - Portrait (phones held upright, narrow windows) gets a touch-first layout. style.scss uses the same media query, so CSS and JS always agree.
+  - Rotating mid-visit closes whatever is open, puts folders and board items back, and continues from the same view in the other layout (main.js, portraitQuery change listener).
+
+What portrait changes:
+
+- Room view: the desktop hotspots and edge arrows are hidden. Two big frosted tiles, "Projects" and "Info Board", sit along the bottom, and the camera frames the desk and most of the board a little closer.
+- Projects (src/features/folders/folderRing.js): the folders lift out of the holder into a floating ring over the desk, like the Silent Hill 2 inventory.
+  - Drag or flick to spin it; it settles with the nearest folder at the front.
+  - ‹ › and the arrow keys step it. Tapping a side folder spins it round to the front.
+  - Tapping the front folder opens it. The others shrink away, and the opened folder lies on the desk as on desktop.
+  - The camera shows one page at a time; ‹ › at the bottom flies between the two pages (OPEN_PAGES in folderAnimations.js).
+  - Closing flies the folder back into the ring; × returns everything to the holder.
+- Info Board: the items stay pinned. The camera hops between them left to right (swipe, ‹ ›, or tap another item), starting on About Me. The focused item lifts as if hovered (boardLinks.focus), and tapping it opens it.
+- PDFs: phone browsers can't show a PDF inside the page. A project's documents and slides open in a new tab. The right page shows a "Read the …" card instead of the embedded PDF. A board document shows its first-page image, with an "Open PDF" button.
+- Notes (About Me, Skills) open as a readable text card instead of their shrunken drawing.
+
+Framing (src/features/camera/cameraController.js):
+
+- Portrait views aren't fixed poses. fitPose() finds the nearest camera distance at which the given boxes fit the screen's current shape, so every phone size is framed.
+- PORTRAIT_VIEWS holds each view's viewing direction, how much of the screen it fills, and how far it's lifted above the bottom controls. Tune those, plus RING_CENTRE / RING_RADIUS in folderRing.js.
+- To try it on a phone: npx vite --host, then open the printed network URL. Or narrow the desktop window until it's taller than wide.
+
+Phones (pointer: coarse) also render at most 2 pixels per CSS pixel (src/core/scene.js); desktops are unchanged.
+
 ## 5) Asset Pipeline
 
 Assets are loaded from:
@@ -240,8 +269,8 @@ Assets are loaded from:
 
 Why this matters:
 
-- Vite serves files in public directly from root URL.
-- World module references assets using /models/... URLs.
+- Vite serves files in public from the site's base URL (vite.config.js base, '/' on rakhatb.com).
+- Code writes public paths from the root (/models/..., /docs/..., /projects/...) and wraps them in publicUrl() (src/core/paths.js), which adds the base. projects.js and the board's documents do this for you, so keep writing /projects/... there.
 - Draco decoder URL is remote and required if models contain Draco-compressed geometry.
 
 ## 6) Rendering and Update Loop
@@ -269,12 +298,20 @@ This design keeps visual tuning easy: adjust a few constants without rewriting a
 Development:
 
 1. npm install
-2. npm run dev
+2. npm run dev, then open http://localhost:5173/
 
 Production build:
 
 1. npm run build
 2. npm run preview
+
+Deploying (GitHub Pages):
+
+- Live at https://rakhatb.com (custom domain, DNS at Namecheap).
+- Every push to main rebuilds and publishes the site (.github/workflows/deploy.yml), in about 1–2 minutes. Progress and errors show in the repo's Actions tab.
+- One-time setup: repo Settings → Pages → Source: GitHub Actions, and Custom domain: rakhatb.com.
+- DNS (Namecheap → Advanced DNS): A records for @ → 185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153; CNAME www → rakhat-b.github.io.
+- Dropping the custom domain moves the site to https://rakhat-b.github.io/Web-Portfolio/: set base in vite.config.js to '/Web-Portfolio/'.
 
 ## 9) Current Behavior Summary
 

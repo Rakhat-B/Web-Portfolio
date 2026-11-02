@@ -3,7 +3,10 @@ import * as THREE from 'three';
 export function createRenderer() {
   // alpha: transparent clear, so the CSS gradient on <body> shows around the room.
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
+  // Phones report up to 3 pixels per CSS pixel; past 2 the extra cost (shadows included) shows
+  // no difference. Desktops keep their own ratio.
+  const touchFirst = window.matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(touchFirst ? Math.min(window.devicePixelRatio, 2) : window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;

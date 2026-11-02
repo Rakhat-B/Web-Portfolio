@@ -3,6 +3,7 @@ import { gsap } from 'gsap';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader.js';
 import { SURFACE } from './boardLayout';
 import { ABOUT } from '../../about';
+import { publicUrl } from '../../core/paths';
 
 // Interactive items pinned to the board, in cork-local units (see boardLayout.js):
 // link badges open a URL, documents open their PDF up close and notes fly up to be read (main.js).
@@ -26,7 +27,7 @@ export const BOARD_NOTES = [
 
 // Polaroid: the picture is w × h, framed by `margin` with a deeper `bottomMargin`.
 const BOARD_PHOTO = {
-  image: ABOUT.photo, label: ABOUT.name, x: -1.55, y: 0.4, w: 0.85, h: 0.95, rot: 0.03,
+  image: publicUrl(ABOUT.photo), label: ABOUT.name, x: -1.55, y: 0.4, w: 0.85, h: 0.95, rot: 0.03,
   paperColor: 0xfbfbf8, margin: 0.05, bottomMargin: 0.25, cover: true
 };
 
@@ -36,7 +37,7 @@ export const BOARD_DOCS = [
   { pdf: '/docs/diploma.pdf', image: '/docs/diploma.jpg', download: 'Rakhat_Bektas_Diploma.pdf', label: "Bachelor's Diploma", x: 1.65, y: 0.5, w: 1.45, h: 1.05, rot: -0.02 },
   { pdf: '/docs/ielts.pdf', image: '/docs/ielts.jpg', download: 'Rakhat_Bektas_IELTS.pdf', label: 'IELTS Certificate', x: -0.65, y: -0.75, w: 0.62, h: 0.88, rot: 0.02 },
   { pdf: '/docs/resume.pdf', image: '/docs/resume.jpg', download: 'Rakhat_Bektas_Resume.pdf', label: 'Resume', x: 0.3, y: -0.75, w: 0.62, h: 0.88, rot: -0.02 }
-];
+].map((doc) => ({ ...doc, pdf: publicUrl(doc.pdf), image: publicUrl(doc.image) }));
 
 // Each icon is a logo whose symbol is cut out of its outline (`size` × `size` SVG units),
 // extruded in `color`, with a white `backing` plate sunk behind so the symbol shows white.
@@ -283,6 +284,7 @@ export function createBoardLinks({ scene, camera, isActive, onOpenDoc }) {
   const centre = new THREE.Vector3();
   const rim = new THREE.Vector3();
   let hovered = null;
+  let focused = null; // portrait: the item the camera is on (main.js), lifted like a hovered one
 
   const objectAt = (ray) => ray.intersectObjects(objects, true)[0]?.object.parent ?? null;
 
@@ -317,6 +319,9 @@ export function createBoardLinks({ scene, camera, isActive, onOpenDoc }) {
   }
 
   window.addEventListener('mousemove', (event) => {
+    if (focused) {
+      return; // phones fire a mousemove on every tap; the focused item keeps its lift
+    }
     if (!isActive()) {
       setHovered(null);
       return;
@@ -329,19 +334,39 @@ export function createBoardLinks({ scene, camera, isActive, onOpenDoc }) {
     }
   });
 
+  // Drop the hover state at once, without the settle-back tweens (the caller animates the object).
+  function clearHover() {
+    if (hovered) {
+      hovered.userData.label.classList.remove('is-shown');
+      hovered = null;
+      document.body.style.cursor = '';
+    }
+  }
+
   return {
     objects,
     itemAt(ray) {
       const object = objectAt(ray);
       return object ? { item: object.userData.item, object } : null;
     },
-    // Drop the hover state at once, without the settle-back tweens (the caller animates the object).
-    clearHover() {
-      if (hovered) {
-        hovered.userData.label.classList.remove('is-shown');
-        hovered = null;
-        document.body.style.cursor = '';
-      }
+    clearHover,
+    // Portrait: lift `object` as if hovered and hold it there, or with null let it settle back.
+    focus(object) {
+      focused = object;
+      setHovered(object);
+      document.body.style.cursor = '';
+    },
+    // Everything straight back onto the cork, nothing lifted (the layout switched mid-visit).
+    reset() {
+      focused = null;
+      clearHover();
+      objects.forEach((object) => {
+        const { item, restZ } = object.userData;
+        gsap.killTweensOf([object.position, object.rotation, object.scale]);
+        object.position.set(SURFACE.x + item.x, SURFACE.y + item.y, restZ);
+        object.rotation.set(0, 0, item.rot ?? 0);
+        object.scale.setScalar(1);
+      });
     }
   };
 }

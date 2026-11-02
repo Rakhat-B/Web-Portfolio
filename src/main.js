@@ -3,15 +3,20 @@ import { gsap } from 'gsap';
 import { revealScene } from './features/loading/loadingScreen';
 import { createRenderer, createScene, createCamera, addLights, bindResize } from './core/scene';
 import { createGltfLoader } from './core/loaders';
-import { createCameraControls, flyToPose, CAMERA_POSES } from './features/camera/cameraController';
+import { isPortrait, portraitQuery } from './core/layout';
+import {
+  createCameraControls, flyToPose, fitDistance, fitPose, CAMERA_POSES, PORTRAIT_VIEWS
+} from './features/camera/cameraController';
 import { SURFACE } from './features/board/boardLayout';
-import { createBoardLinks } from './features/board/boardLinks';
+import { createBoardLinks, BOARD_NOTES } from './features/board/boardLinks';
 import { createBoardLight } from './features/board/boardLight';
 import { loadWorldAndFolderTemplate } from './features/world/worldLoader';
 import { createFolderClones } from './features/folders/folderSpawner';
 import {
-  spreadFolders, gatherFolders, openFolderAnimation, closeFolderAnimation, TABLE_Y, OPEN_LIFT, OPEN_SPOT
+  spreadFolders, gatherFolders, openFolderAnimation, closeFolderAnimation, snapFolderHome,
+  TABLE_Y, OPEN_LIFT, OPEN_SPOT, OPEN_PAGES
 } from './features/folders/folderAnimations';
+import { createFolderRing, RING_BOUNDS } from './features/folders/folderRing';
 import { attachPages, setPagesVisible, renderPages, fillPages, stopPageMedia } from './features/folders/folderPages';
 import { PROJECTS } from './projects';
 import { createFolderInteraction } from './features/folders/folderInteractions';
@@ -32,13 +37,19 @@ const raycaster = new THREE.Raycaster();
 const folders = [];
 let fileHolderMesh = null;
 let folderHover = null;
+let folderRing = null; // portrait Projects view
 let boardLinks = null;
 let foldersSpread = false;
 let clickZones = [];
+let overviewBoxes = []; // portrait: what the room view frames
+let boardOrder = []; // portrait: board items left to right, the order the camera hops through them
+let boardIndex = 0;
 let view = 'loading'; // nothing to hover or click behind the loading screen
 document.body.dataset.view = view;
 
 // body[data-view] also decides which invisible nav strips the CSS shows.
+// Portrait screens (core/layout.js) also bring the folder ring up in the desk view and hold
+// a board item in focus in the board view.
 function goTo(name, duration) {
   view = name;
   document.body.dataset.view = name;
@@ -47,7 +58,34 @@ function goTo(name, duration) {
   } else {
     boardLight.turnOff();
   }
-  flyToPose(camera, controls, CAMERA_POSES[name], duration);
+  if (isPortrait()) {
+    if (name === 'table') {
+      folderRing?.enter();
+    } else {
+      folderRing?.leave();
+    }
+    boardLinks?.focus(name === 'board' ? boardOrder[boardIndex] ?? null : null);
+    if (name === 'board' && boardOrder.length) {
+      showBoardLabel();
+    }
+  }
+  flyToPose(camera, controls, poseFor(name), duration);
+}
+
+// Desktop views have fixed poses; portrait ones are fitted to the screen's shape.
+function poseFor(name) {
+  if (isPortrait() && name === 'overview' && overviewBoxes.length) {
+    const pose = fitPose(camera, overviewBoxes, PORTRAIT_VIEWS.overview);
+    const limits = { ...CAMERA_POSES.overview.limits, minDistance: pose.distance * 0.75, maxDistance: pose.distance * 1.5 };
+    return { ...pose, limits };
+  }
+  if (isPortrait() && name === 'table' && folderRing) {
+    return fitPose(camera, [RING_BOUNDS], PORTRAIT_VIEWS.ring);
+  }
+  if (isPortrait() && name === 'board' && boardOrder.length) {
+    return boardItemPose(boardOrder[boardIndex]);
+  }
+  return CAMERA_POSES[name];
 }
 
 const folderClose = document.querySelector('.folder-close');
@@ -56,29 +94,54 @@ let openedFolder = null;
 // Frames both pages of the opened folder (about 2.1 × 1.35) from almost straight above, for any window shape.
 function openedFolderPose() {
   const spine = new THREE.Vector3(OPEN_SPOT.x, TABLE_Y + OPEN_LIFT, OPEN_SPOT.z + 0.53);
-  const viewHeight = Math.max(1.35 / 0.85, 2.1 / 0.9 / camera.aspect);
-  const distance = viewHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  const distance = fitDistance(camera, 2.1, 1.35, 0.9, 0.85);
   const position = spine.clone().add(new THREE.Vector3(0.14, 1, 0).normalize().multiplyScalar(distance));
   return { position: position.toArray(), target: spine.toArray() };
 }
 
+// Portrait: one page of the opened folder at a time; the arrows (.page-switch) fly between them.
+const pageSwitch = document.querySelector('.page-switch');
+const pageButtons = pageSwitch.querySelectorAll('.page-switch__step');
+const pageDots = pageSwitch.querySelectorAll('.page-switch__dot');
+let openedPage = 'left';
+
+function showPage(side, duration = 0.7) {
+  openedPage = side;
+  pageButtons.forEach((button) => { button.disabled = button.dataset.page === side; });
+  pageDots.forEach((dot) => dot.classList.toggle('is-current', dot.dataset.page === side));
+  const page = new THREE.Box3().setFromCenterAndSize(OPEN_PAGES[side], new THREE.Vector3(1.15, 0.02, 0.85));
+  flyToPose(camera, controls, fitPose(camera, [page], PORTRAIT_VIEWS.page), duration);
+}
+
+pageButtons.forEach((button) => button.addEventListener('click', () => showPage(button.dataset.page)));
+
 function openFolder(folderData) {
+  const project = PROJECTS[folderData.index];
   folderHover?.clearHoveredFolder();
   openedFolder = folderData;
   view = 'folder';
   document.body.dataset.view = view;
-  fillPages(PROJECTS[folderData.index], (doc) => openPdf(PROJECTS[folderData.index], doc));
+  fillPages(project, (doc) => openPdf(project, doc), { embedPdf: !isPortrait() });
   attachPages(folderData);
+  if (isPortrait()) {
+    folderRing.release(folderData);
+  }
   openFolderAnimation(folderData, () => setPagesVisible(true));
-  flyToPose(camera, controls, openedFolderPose());
+  if (isPortrait()) {
+    showPage('left', 1.2);
+  } else {
+    flyToPose(camera, controls, openedFolderPose());
+  }
   folderClose.focus();
 }
 
 function closeFolder() {
+  const folderData = openedFolder;
   closeViewer();
   stopPageMedia();
   setPagesVisible(false);
-  closeFolderAnimation(openedFolder);
+  // Portrait: once shut it flies back into the ring.
+  closeFolderAnimation(folderData, isPortrait() ? () => folderRing.restore(folderData) : undefined);
   openedFolder = null;
   goTo('table');
 }
@@ -87,10 +150,47 @@ folderClose.addEventListener('click', closeFolder);
 
 // A board document or note flies up in front of the camera, then the viewer takes its place:
 // a document's PDF, or a note's own drawing (crisp and unlit, away from the lamp it looks dim).
+// Phones can't show a PDF inside the page, so on portrait screens a document shows its first
+// page with a link to the PDF, and a note (too small to read as a drawing) shows its text.
 const docViewer = document.querySelector('.doc-viewer');
 const docFrame = docViewer.querySelector('.doc-viewer__frame');
 const docDownload = docViewer.querySelector('.doc-viewer__download');
+const docText = docViewer.querySelector('.doc-viewer__text');
+const VIEWER_MODES = ['doc-viewer--centered', 'doc-viewer--slides', 'doc-viewer--image', 'doc-viewer--note', 'doc-viewer--text'];
 let openedDoc = null;
+let docMotion = null; // a board document flying up to the camera or back
+
+function resetDocViewer() {
+  docViewer.style.cssText = '';
+  docViewer.classList.remove(...VIEWER_MODES);
+}
+
+// The viewer's link downloads the PDF; on portrait screens it opens it in a new tab instead,
+// in the phone's own PDF viewer.
+function setDocLink(pdf, filename) {
+  docDownload.href = pdf;
+  if (isPortrait()) {
+    docDownload.textContent = 'Open PDF';
+    docDownload.target = '_blank';
+    docDownload.rel = 'noopener';
+    docDownload.removeAttribute('download');
+  } else {
+    docDownload.textContent = 'Download';
+    docDownload.removeAttribute('target');
+    docDownload.download = filename;
+  }
+}
+
+// A note's title, subtitle and paragraphs as real text (portrait).
+function fillNoteText({ title, subtitle, lines }) {
+  const make = (tag, className, text) => Object.assign(document.createElement(tag), { className, textContent: text });
+  docText.replaceChildren(
+    make('h2', 'doc-viewer__title', title),
+    ...(subtitle ? [make('p', 'doc-viewer__subtitle', subtitle)] : []),
+    ...lines.map((line) => make('p', '', line))
+  );
+  docText.scrollTop = 0;
+}
 
 // Covers exactly the sheet's on-screen rectangle, so the swap from 3D sheet to viewer is seamless.
 function fitDocViewer() {
@@ -118,28 +218,38 @@ function openDoc(doc, object) {
 
   // Fill ~75% of the height (or 85% of the width on narrow windows), facing the camera.
   const { w, h } = object.userData.size;
-  const viewHeight = Math.max(h / 0.75, w / 0.85 / camera.aspect);
-  const distance = viewHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  const distance = fitDistance(camera, w, h, 0.85, 0.75);
   const target = camera.position.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()), distance);
   const tween = { duration: 0.7, ease: 'power2.inOut' };
 
+  docMotion?.kill();
   gsap.killTweensOf([object.position, object.rotation, object.scale]);
-  gsap.timeline({ onComplete: showDocViewer })
+  docMotion = gsap.timeline({ onComplete: showDocViewer })
     .to(object.position, { x: target.x, y: target.y, z: target.z, ...tween })
     .to(object.rotation, { x: camera.rotation.x, y: camera.rotation.y, z: camera.rotation.z, ...tween }, '<')
     .to(object.scale, { x: 1, y: 1, z: 1, ...tween }, '<');
 }
 
 function showDocViewer() {
-  const { doc } = openedDoc;
-  docViewer.classList.remove('doc-viewer--centered', 'doc-viewer--slides');
-  fitDocViewer();
-  docViewer.classList.toggle('doc-viewer--note', !doc.pdf);
-  docViewer.style.backgroundImage = doc.pdf ? '' : `url(${openedDoc.object.children[1].material.map.image.toDataURL()})`;
-  if (doc.pdf) {
-    docFrame.src = `${doc.pdf}#view=FitH`;
-    docDownload.href = doc.pdf;
-    docDownload.download = doc.download;
+  const { doc, object } = openedDoc;
+  resetDocViewer();
+  if (isPortrait() && doc.note) {
+    docViewer.classList.add('doc-viewer--centered', 'doc-viewer--text', 'doc-viewer--note');
+    docViewer.style.backgroundColor = doc.background;
+    fillNoteText(doc);
+  } else {
+    fitDocViewer();
+    docViewer.classList.toggle('doc-viewer--image', !doc.pdf || isPortrait());
+    docViewer.classList.toggle('doc-viewer--note', !doc.pdf);
+    if (!doc.pdf) {
+      docViewer.style.backgroundImage = `url(${object.children[1].material.map.image.toDataURL()})`;
+    } else if (isPortrait()) {
+      docViewer.style.backgroundImage = `url(${doc.image})`;
+      setDocLink(doc.pdf, doc.download);
+    } else {
+      docFrame.src = `${doc.pdf}#view=FitH`;
+      setDocLink(doc.pdf, doc.download);
+    }
   }
   docViewer.hidden = false;
   docViewer.querySelector('.doc-viewer__close').focus();
@@ -152,29 +262,44 @@ function closeDoc() {
   docFrame.src = 'about:blank';
   const tween = { duration: 0.6, ease: 'power2.inOut' };
 
+  docMotion?.kill(); // still flying up
   gsap.killTweensOf([object.position, object.rotation, object.scale]);
-  gsap.timeline({ onComplete: () => { view = 'board'; document.body.dataset.view = view; } })
+  docMotion = gsap.timeline({
+    onComplete: () => {
+      view = 'board';
+      document.body.dataset.view = view;
+      if (isPortrait()) {
+        boardLinks.focus(object); // lifted again, as before it opened
+      }
+    }
+  })
     .to(object.position, { x: SURFACE.x + doc.x, y: SURFACE.y + doc.y, z: object.userData.restZ, ...tween })
     .to(object.rotation, { x: 0, y: 0, z: doc.rot, ...tween }, '<');
 }
 
 // One of an opened folder's documents: the same viewer, centred on screen (nothing flies up).
+// Portrait screens open it in a new tab instead.
 function openPdf(project, doc) {
-  docViewer.style.cssText = '';
-  docViewer.style.backgroundImage = '';
-  docViewer.classList.remove('doc-viewer--note', 'doc-viewer--slides');
+  if (isPortrait()) {
+    window.open(doc.pdf, '_blank', 'noopener');
+    return;
+  }
+  resetDocViewer();
   docViewer.classList.add('doc-viewer--centered');
   docFrame.src = `${doc.pdf}#view=FitH`;
-  docDownload.href = doc.pdf;
-  docDownload.download = `${project.title}_${doc.title}.pdf`.replace(/[^\w.]+/g, '_');
+  setDocLink(doc.pdf, `${project.title}_${doc.title}.pdf`.replace(/[^\w.]+/g, '_'));
   docViewer.hidden = false;
   docViewer.querySelector('.doc-viewer__close').focus();
 }
 
 // An opened folder's slides, big and 16:9 in the same viewer (no download).
+// Portrait screens open the player in a new tab, where it can fill the phone turned sideways.
 function openSlides(project) {
-  docViewer.style.cssText = '';
-  docViewer.classList.remove('doc-viewer--note');
+  if (isPortrait()) {
+    window.open(project.slides, '_blank', 'noopener');
+    return;
+  }
+  resetDocViewer();
   docViewer.classList.add('doc-viewer--centered', 'doc-viewer--slides');
   docFrame.src = project.slides;
   docViewer.hidden = false;
@@ -206,7 +331,11 @@ function closeViewer() {
 }
 
 docViewer.querySelector('.doc-viewer__close').addEventListener('click', closeViewer);
-window.addEventListener('resize', () => openedDoc && !docViewer.hidden && fitDocViewer());
+window.addEventListener('resize', () => {
+  if (openedDoc && !docViewer.hidden && !docViewer.classList.contains('doc-viewer--centered')) {
+    fitDocViewer();
+  }
+});
 
 window.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') {
@@ -235,18 +364,97 @@ function toggleFolders() {
 
 holderButton.addEventListener('click', toggleFolders);
 
+// Portrait carousels (the folder ring, the board items): the name of the one in front, with
+// what a tap does, in the bar along the bottom.
+const carouselLabel = document.querySelector('.carousel-bar__label');
+const carouselName = carouselLabel.querySelector('.carousel-bar__name');
+const carouselHint = carouselLabel.querySelector('.carousel-bar__hint');
+
+function setCarouselLabel(name, hint) {
+  carouselName.textContent = name;
+  carouselHint.textContent = hint;
+  carouselLabel.animate([{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: 250, easing: 'ease-out' });
+}
+
+function showBoardLabel() {
+  const { item } = boardOrder[boardIndex].userData;
+  const hint = item.url?.startsWith('mailto:') ? 'Tap to email'
+    : item.url ? 'Tap to visit'
+      : item.pdf || item.note ? 'Tap to open' : '';
+  setCarouselLabel(item.label, hint);
+}
+
+// Portrait: the board item in focus head-on, with a little of its neighbours round it.
+function boardItemPose(object) {
+  const box = new THREE.Box3().setFromObject(object);
+  const size = box.getSize(new THREE.Vector3());
+  size.set(Math.max(size.x * 1.35, 1.3), size.y * 1.35, size.z);
+  return fitPose(camera, [box.setFromCenterAndSize(box.getCenter(new THREE.Vector3()), size)], PORTRAIT_VIEWS.boardItem);
+}
+
+// Portrait: hop the camera to board item `index` (wrapping round) and lift it.
+function focusBoardItem(index) {
+  boardIndex = (index + boardOrder.length) % boardOrder.length;
+  boardLinks.focus(boardOrder[boardIndex]);
+  showBoardLabel();
+  flyToPose(camera, controls, boardItemPose(boardOrder[boardIndex]), 0.7);
+}
+
+function stepCarousel(direction) {
+  if (view === 'table') {
+    folderRing?.step(direction);
+  } else if (view === 'board' && boardOrder.length) {
+    focusBoardItem(boardIndex + direction);
+  }
+}
+
+document.querySelectorAll('.carousel-bar__step').forEach((button) => {
+  button.addEventListener('click', () => stepCarousel(Number(button.dataset.step)));
+});
+
+// A badge opens its link, a document or note opens up close.
+function activateBoardItem({ item, object }) {
+  if (item.url?.startsWith('mailto:')) {
+    window.location.href = item.url; // hands off to the mail app without a blank tab
+  } else if (item.url) {
+    window.open(item.url, '_blank', 'noopener');
+  } else if (item.pdf || item.note) {
+    openDoc(item, object);
+  }
+}
+
 // Overview: fly to whichever click zone the ray enters first.
 // Table: a spread folder opens, the holder toggles the folders.
 // Board: a badge opens its link, a document or note opens up close. Doc: a click outside closes it.
+// Portrait: on the ring the front folder opens and another spins round to the front; on the
+// board the focused item opens and another gets the focus.
 function onSceneClick() {
+  if (isPortrait() && view === 'table') {
+    const folder = folderRing && raycaster.intersectObjects(folders.map((folderData) => folderData.hoverCollider))
+      .map(({ object }) => object.userData.folderRef)
+      .find((folderData) => folderRing.isTappable(folderData));
+    if (folder && folderRing.isFront(folder)) {
+      openFolder(folder);
+    } else if (folder) {
+      folderRing.bringToFront(folder);
+    }
+    return;
+  }
+
+  if (isPortrait() && view === 'board') {
+    const hit = boardLinks?.itemAt(raycaster);
+    if (hit && hit.object === boardOrder[boardIndex]) {
+      activateBoardItem(hit);
+    } else if (hit) {
+      focusBoardItem(boardOrder.indexOf(hit.object));
+    }
+    return;
+  }
+
   if (view === 'board') {
     const hit = boardLinks?.itemAt(raycaster);
-    if (hit?.item.url?.startsWith('mailto:')) {
-      window.location.href = hit.item.url; // hands off to the mail app without a blank tab
-    } else if (hit?.item.url) {
-      window.open(hit.item.url, '_blank', 'noopener');
-    } else if (hit?.item.pdf || hit?.item.note) {
-      openDoc(hit.item, hit.object);
+    if (hit) {
+      activateBoardItem(hit);
     }
     return;
   }
@@ -290,8 +498,34 @@ function onSceneClick() {
   }
 }
 
+// Portrait: a drag on the ring spins it; a sideways swipe on the board hops to the next item
+// (swipe left) or the previous one (swipe right).
 const pointerDown = new THREE.Vector2();
-renderer.domElement.addEventListener('pointerdown', (event) => pointerDown.set(event.clientX, event.clientY));
+let swipeFrom = null;
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  pointerDown.set(event.clientX, event.clientY);
+  if (isPortrait() && view === 'table') {
+    folderRing?.grab(event.clientX);
+  }
+  swipeFrom = isPortrait() && view === 'board' ? { x: event.clientX, y: event.clientY } : null;
+});
+window.addEventListener('pointermove', (event) => folderRing?.move(event.clientX));
+window.addEventListener('pointerup', (event) => {
+  folderRing?.drop();
+  if (!swipeFrom) {
+    return;
+  }
+  const dx = event.clientX - swipeFrom.x;
+  const dy = event.clientY - swipeFrom.y;
+  swipeFrom = null;
+  if (view === 'board' && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    focusBoardItem(boardIndex + (dx < 0 ? 1 : -1));
+  }
+});
+window.addEventListener('pointercancel', () => {
+  folderRing?.drop();
+  swipeFrom = null;
+});
 renderer.domElement.addEventListener('click', (event) => {
   if (pointerDown.distanceTo(new THREE.Vector2(event.clientX, event.clientY)) > 5) {
     return; // that was an orbit drag, not a click
@@ -301,6 +535,54 @@ renderer.domElement.addEventListener('click', (event) => {
     -(event.clientY / window.innerHeight) * 2 + 1
   ), camera);
   onSceneClick();
+});
+
+// Portrait carousels from the keyboard too (narrow desktop windows): arrows step, Enter opens.
+window.addEventListener('keydown', (event) => {
+  if (!isPortrait() || event.target.matches?.('input')) {
+    return; // the volume slider has its own arrow keys
+  }
+  const direction = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+  if (direction && view === 'folder') {
+    const side = direction < 0 ? 'left' : 'right';
+    if (side !== openedPage) {
+      showPage(side);
+    }
+  } else if (direction) {
+    stepCarousel(direction);
+  } else if (event.key === 'Enter' && event.target === document.body) {
+    const front = folderRing?.front();
+    if (view === 'table' && front && folderRing.isTappable(front)) {
+      openFolder(front);
+    } else if (view === 'board' && boardOrder.length) {
+      activateBoardItem({ item: boardOrder[boardIndex].userData.item, object: boardOrder[boardIndex] });
+    }
+  }
+});
+
+// Rotating the phone (or resizing a window past square) switches layouts: close whatever is
+// open, put everything back in its place, and carry on from the same view in the other layout.
+portraitQuery.addEventListener('change', () => {
+  if (view === 'loading') {
+    return; // the reveal picks the right layout
+  }
+  const nextView = { folder: 'table', doc: 'board' }[view] ?? view;
+  docMotion?.kill();
+  openedDoc = null;
+  docViewer.hidden = true;
+  docFrame.src = 'about:blank';
+  if (openedFolder) {
+    stopPageMedia();
+    setPagesVisible(false);
+    openedFolder = null;
+  }
+  folderHover?.clearHoveredFolder();
+  folderRing?.reset();
+  folders.forEach(snapFolderHome);
+  foldersSpread = false;
+  holderButton.querySelector('.tip').textContent = 'Show Projects';
+  boardLinks?.reset();
+  goTo(nextView);
 });
 
 document.querySelectorAll('[data-goto]').forEach((button) => {
@@ -361,6 +643,7 @@ if (import.meta.env.DEV) {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  folderRing?.update(performance.now() / 1000);
   placeHotspots();
   renderer.render(scene, camera);
   renderPages(scene, camera);
@@ -378,9 +661,15 @@ async function bootstrap() {
   boardLinks = createBoardLinks({
     scene,
     camera,
-    isActive: () => view === 'board',
+    isActive: () => view === 'board' && !isPortrait(),
     onOpenDoc: openDoc
   });
+
+  // Portrait: left to right (top first where two share a column), starting on About Me.
+  boardOrder = [...boardLinks.objects].sort((a, b) => (
+    a.userData.item.x - b.userData.item.x || b.userData.item.y - a.userData.item.y
+  ));
+  boardIndex = Math.max(0, boardOrder.findIndex((object) => object.userData.item === BOARD_NOTES[0]));
 
   if (!folderTemplate || !fileHolderMesh) {
     return;
@@ -395,6 +684,12 @@ async function bootstrap() {
     { view: 'board', box: boxOf('board') }
   ];
 
+  // Portrait room view: the desk with its lamp and holder, and most of the board (its right
+  // end may run off a phone's narrow screen, so the room can sit closer).
+  const boardPart = boxOf('board');
+  boardPart.max.x = SURFACE.x + 0.8;
+  overviewBoxes = [boxOf('table', 'Lamp', 'fileHolder'), boardPart];
+
   folders.push(...createFolderClones({
     template: folderTemplate,
     scene,
@@ -404,8 +699,13 @@ async function bootstrap() {
   folderHover = createFolderInteraction({
     camera,
     folders,
-    isActive: () => view === 'table',
+    isActive: () => view === 'table' && !isPortrait(),
     onHoverChange: showFolderLabel
+  });
+
+  folderRing = createFolderRing({
+    folders,
+    onFrontChange: (folderData) => setCarouselLabel(PROJECTS[folderData.index].title, 'Tap to open')
   });
 }
 

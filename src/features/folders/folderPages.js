@@ -37,8 +37,9 @@ export function setPagesVisible(visible) {
 
 // Puts a project from src/projects.js on the pages; missing pieces are hidden.
 // The first document is shown on the right page; `onOpenPdf(doc)` runs when one of the
-// others' links is clicked.
-export function fillPages(project, onOpenPdf) {
+// others' links is clicked. Without `embedPdf` (phones can't show a PDF inside the page) the
+// right page shows a card that opens the first document the same way instead.
+export function fillPages(project, onOpenPdf, { embedPdf = true } = {}) {
   const $ = (selector) => document.querySelector(selector);
   $('.page__title').textContent = project.title;
   $('.page__description').textContent = project.description || 'Description coming soon.';
@@ -53,9 +54,16 @@ export function fillPages(project, onOpenPdf) {
 
   // The main document fills the right page; the others are links under "More documents".
   const [mainDoc, ...extraDocs] = project.documents ?? [];
-  $('.page__pdf-wrap').hidden = !mainDoc;
+  $('.page__pdf-wrap').hidden = !mainDoc || !embedPdf;
   $('.page__pdf-empty').hidden = Boolean(mainDoc);
-  $('.page__pdf').src = mainDoc ? `${mainDoc.pdf}#toolbar=0&view=FitH` : 'about:blank';
+  $('.page__pdf').src = mainDoc && embedPdf ? `${mainDoc.pdf}#toolbar=0&view=FitH` : 'about:blank';
+
+  const pdfCard = $('.page__pdf-card');
+  pdfCard.hidden = !mainDoc || embedPdf;
+  if (mainDoc) {
+    pdfCard.querySelector('.page__pdf-card-title').textContent = `Read the ${mainDoc.title}`;
+    pdfCard.onclick = () => onOpenPdf(mainDoc);
+  }
 
   const docList = $('.page__docs');
   docList.hidden = !extraDocs.length;

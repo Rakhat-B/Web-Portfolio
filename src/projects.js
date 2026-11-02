@@ -1,3 +1,5 @@
+import { publicUrl } from './core/paths';
+
 // One entry per folder on the desk, in FOLDER_SLOTS order (the desk has 8 spots).
 // Fill in what you have; anything left out is hidden on the folder's pages.
 //
@@ -11,7 +13,8 @@
 //   slides       Google Slides "Publish to web" → Embed link (the src="…" part),
 //                e.g. 'https://docs.google.com/presentation/d/e/2PACX-…/embed?start=false&loop=false'
 //   audio        optional voice-over, e.g. '/projects/project-1/explainer.mp3'
-export const PROJECTS = [
+//   hidden       true keeps the entry here but leaves its folder off the desk; delete it to show the folder
+const ALL_PROJECTS = [
   { title: 'Phishing Website Detector', 
     description: 'Machine learning model for detecting phishing websites.', 
     github: '', 
@@ -49,6 +52,15 @@ export const PROJECTS = [
     documents: [], 
     slides: 'https://www.canva.com/design/DAGjVO24KPA/-bGszyVElmhrOyUoJrzFRw/view?embed', 
     audio: '' },
-  { title: 'Project 7', description: '', github: '', documents: [], slides: '', audio: '' },
-  { title: 'Project 8', description: '', github: '', documents: [], slides: '', audio: '' }
+  { title: 'Project 7', description: '', github: '', documents: [], slides: '', audio: '', hidden: true },
+  { title: 'Project 8', description: '', github: '', documents: [], slides: '', audio: '', hidden: true }
 ];
+
+// Paths above are from public/; publicUrl adds the folder the site is served from.
+export const PROJECTS = ALL_PROJECTS
+  .filter((project) => !project.hidden)
+  .map((project) => ({
+    ...project,
+    audio: publicUrl(project.audio),
+    documents: project.documents.map((doc) => ({ ...doc, pdf: publicUrl(doc.pdf) }))
+  }));

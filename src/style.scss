@@ -16,6 +16,16 @@ body {
   background: radial-gradient(ellipse at 50% 45%, var(--bg-centre) 0%, var(--bg-mid) 55%, var(--bg-edge) 100%) fixed;
 }
 
+// Lifts index.html's cover for the moment before this stylesheet arrives (dark page, nothing
+// shown): everything shows, and the body's gradient fills the page again. Each beats its rule there.
+html:root {
+  background: none;
+}
+
+html body {
+  visibility: visible;
+}
+
 // Inline canvases leave a few px of line-height below them, which adds a scrollbar.
 canvas {
   display: block;
@@ -207,7 +217,10 @@ canvas {
 // Glassy circle for the nav arrows and the folder close button; dark tint reads on bright and dark scenes.
 .view-nav__arrow,
 .folder-close,
-.doc-viewer__close {
+.doc-viewer__close,
+.room-back,
+.carousel-bar__step,
+.page-switch__step {
   position: relative; // anchors the .tip
   display: grid;
   place-items: center;
@@ -228,7 +241,10 @@ canvas {
 .view-nav__arrow:hover,
 .folder-close:hover,
 .doc-viewer__close:hover,
-.doc-viewer__download:hover {
+.doc-viewer__download:hover,
+.room-back:hover,
+.carousel-bar__step:hover,
+.page-switch__step:enabled:hover {
   background: rgba(0, 0, 0, 0.45);
 }
 
@@ -400,7 +416,6 @@ canvas {
   animation: page-in 0.3s ease-out;
 }
 
-// A note has no PDF: main.js sets its drawing as the background instead.
 // An opened folder's document: centred, A4-shaped, leaving room for the buttons below.
 .doc-viewer--centered {
   inset: 0 0 12vh;
@@ -419,13 +434,57 @@ canvas {
   }
 }
 
-.doc-viewer--note {
+// A picture instead of the PDF (main.js sets it as the background): a note's drawing, or on
+// portrait screens a document's first page.
+.doc-viewer--image {
   background-size: 100% 100%;
 
-  .doc-viewer__frame,
-  .doc-viewer__download {
+  .doc-viewer__frame {
     display: none;
   }
+}
+
+// A note has no PDF to download.
+.doc-viewer--note .doc-viewer__download {
+  display: none;
+}
+
+// Portrait: a note's text on its paper colour, centred, scrolling if it's long.
+.doc-viewer--text {
+  width: min(90vw, 480px);
+  height: fit-content;
+
+  .doc-viewer__frame {
+    display: none;
+  }
+
+  .doc-viewer__text {
+    display: block;
+  }
+}
+
+.doc-viewer__text {
+  display: none;
+  max-height: 76vh;
+  overflow-y: auto;
+  padding: 28px 24px;
+  color: #2a2a2a;
+  font-family: Georgia, 'Times New Roman', serif; // as on the note itself
+  font-size: 17px;
+  line-height: 1.55;
+
+  p + p {
+    margin-top: 0.8em;
+  }
+}
+
+.doc-viewer__title {
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.doc-viewer__subtitle {
+  font-style: italic;
 }
 
 .doc-viewer__frame {
@@ -609,7 +668,34 @@ canvas {
   top: 36px; // below the wrap's top padding
 }
 
-.page :is(.page__audio, .page__docs, .page__github, .page__slides-wrap, .page__pdf-wrap, .page__pdf-empty)[hidden] {
+// Portrait: stands in for the embedded PDF on the right page and opens it in a new tab.
+.page__pdf-card {
+  position: absolute;
+  inset: 20px;
+  display: grid;
+  place-content: center;
+  gap: 20px;
+  padding: 48px;
+  border: 3px solid #e2dccb;
+  background: #f6f2e7;
+  color: #222;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.page__pdf-card-title {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.page__pdf-card-hint {
+  color: #0b57d0;
+  text-decoration: underline;
+}
+
+.page :is(.page__audio, .page__docs, .page__github, .page__slides-wrap, .page__pdf-wrap, .page__pdf-empty, .page__pdf-card)[hidden] {
   display: none;
 }
 
@@ -719,5 +805,187 @@ canvas {
     width: 100px;
     margin: 0 12px 0 6px;
     opacity: 1;
+  }
+}
+
+// Portrait screens only (phones held upright, narrow windows; see core/layout.js), all hidden
+// until the media query below shows them: big view tiles in the room, the carousel bar and a
+// back button on the desk and board, and page arrows in an opened folder.
+.tiles,
+.room-back,
+.carousel-bar,
+.page-switch {
+  display: none;
+}
+
+// Two frosted squares along the bottom of the room view.
+.tiles {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  justify-content: center;
+  gap: 16px;
+  animation: loader-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.4s both;
+}
+
+.tile {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  width: min(40vw, 170px);
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  background: rgba(140, 140, 140, 0.28);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation; // no double-tap zoom
+  transition:
+    background 0.2s,
+    scale 0.15s;
+
+  &:hover {
+    background: rgba(140, 140, 140, 0.4);
+  }
+
+  &:active {
+    scale: 0.96;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 3px;
+  }
+}
+
+.tile__icon {
+  width: 44px;
+  height: 44px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+// Back to the room, where an opened folder's close button sits.
+.room-back {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  touch-action: manipulation;
+}
+
+// The name of the folder or board item in front, Silent Hill 2 style, between step arrows.
+// Drags on the ring pass through the gaps between the buttons.
+.carousel-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 16px;
+  pointer-events: none;
+  animation: loader-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.6s both;
+}
+
+.carousel-bar__step,
+.page-switch__step {
+  flex-shrink: 0;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.carousel-bar__label {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  color: #fff;
+  text-align: center;
+}
+
+// The loader's VCR type: pixel mono with a red/cyan split, plus a shadow to read over the room.
+.carousel-bar__name {
+  display: block;
+  font-family: 'VT323', 'Courier New', monospace;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow:
+    -0.04em 0 rgba(255, 60, 60, 0.45),
+    0.04em 0 rgba(60, 220, 255, 0.45),
+    0 2px 10px rgba(0, 0, 0, 0.7);
+}
+
+.carousel-bar__hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+}
+
+// Opened folder: ‹ ● ○ › under the page.
+.page-switch {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 1; // above the 3D pages
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.page-switch__step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.page-switch__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transition: background 0.2s;
+
+  &.is-current {
+    background: #fff;
+  }
+}
+
+@media (orientation: portrait) {
+  // The desktop's edge strips, hotspots and hover labels give way to the controls above.
+  .view-nav {
+    display: none;
+  }
+
+  .hotspot,
+  .screen-label {
+    display: none !important; // over the per-view rules that show them
+  }
+
+  [data-view='overview'] .tiles,
+  :is([data-view='table'], [data-view='board']) .carousel-bar,
+  [data-view='folder'] .page-switch {
+    display: flex;
+  }
+
+  :is([data-view='table'], [data-view='board']) .room-back {
+    display: grid;
   }
 }

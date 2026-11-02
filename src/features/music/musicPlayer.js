@@ -1,9 +1,10 @@
 import { gsap } from 'gsap';
+import { publicUrl } from '../../core/paths';
 
 // Background music: put the track at public/audio/music.mp3 (or point MUSIC_SRC elsewhere).
 // It loops, starts on the visitor's first click or key press (browsers block sound before
 // that) and remembers mute and volume for the next visit. Without the file the controls stay hidden.
-const MUSIC_SRC = '/audio/song.mp3';
+const MUSIC_SRC = publicUrl('/audio/song.mp3');
 const DEFAULT_VOLUME = 0.4;
 const FADE_IN = 2; // seconds, on first start
 const FADE = 0.25; // seconds, on mute/unmute
