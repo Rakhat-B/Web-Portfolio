@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- No tab icon; this stops the browser asking for /favicon.ico (a 404). -->
+    <link rel="icon" href="data:," />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>web-portfolio</title>
     <!-- Loading screen font, fetched up front so the title never shows in a fallback. -->
@@ -71,7 +73,7 @@
     </div>
     <!-- Board document viewer; main.js sizes it over the sheet that flew up to the camera. -->
     <div class="doc-viewer" hidden>
-      <iframe class="doc-viewer__frame" title="Document" allow="autoplay; fullscreen" allowfullscreen></iframe>
+      <iframe class="doc-viewer__frame" title="Document" allow="autoplay; fullscreen"></iframe>
       <!-- Portrait: a board note's text, readable on a phone. -->
       <div class="doc-viewer__text"></div>
       <div class="doc-viewer__bar">
@@ -103,7 +105,7 @@
           <a class="page__link page__github" target="_blank" rel="noopener">GitHub →</a>
         </div>
         <div class="page__slides-wrap">
-          <iframe class="page__slides" title="Project slides" allow="autoplay; fullscreen" allowfullscreen></iframe>
+          <iframe class="page__slides" title="Project slides" allow="autoplay; fullscreen"></iframe>
           <button class="page__expand page__expand--slides" type="button">⤢ Full view</button>
         </div>
       </article>
