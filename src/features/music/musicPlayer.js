@@ -5,7 +5,8 @@ import { publicUrl } from '../../core/paths';
 // It loops, starts on the visitor's first click or key press (browsers block sound before
 // that) and remembers mute and volume for the next visit. Without the file the controls stay hidden.
 const MUSIC_SRC = publicUrl('/audio/song.mp3');
-const DEFAULT_VOLUME = 0.4;
+const MAX_VOLUME = 0.25; // the slider at full: it's background music, so even that stays quiet
+const DEFAULT_VOLUME = 0.5; // a share of MAX_VOLUME, like the slider
 const FADE_IN = 2; // seconds, on first start
 const FADE = 0.25; // seconds, on mute/unmute
 const STORAGE_KEY = 'portfolio-music';
@@ -58,7 +59,7 @@ export function createMusicPlayer() {
       if (audio.paused) {
         audio.play().catch(() => {});
       }
-      gsap.to(audio, { volume: settings.volume, duration: fade, ease: 'power1.out' });
+      gsap.to(audio, { volume: settings.volume * MAX_VOLUME, duration: fade, ease: 'power1.out' });
     } else {
       gsap.to(audio, { volume: 0, duration: fade, ease: 'power1.out', onComplete: () => audio.pause() });
     }

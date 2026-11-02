@@ -226,7 +226,7 @@ Responsibilities:
 
 - Loop the background track from public/audio/music.mp3 (MUSIC_SRC)
 - Start it on the visitor's first click or key press, fading in (browsers block sound before a gesture)
-- Wire the top-left controls in index.html: mute button and volume slider
+- Wire the top-left controls in index.html: mute button and volume slider (full slider = MAX_VOLUME, kept low for background music)
 - Remember mute and volume in localStorage
 - Keep the controls hidden if the track is missing or fails to load
 

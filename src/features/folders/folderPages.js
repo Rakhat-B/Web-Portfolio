@@ -1,4 +1,5 @@
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { setFrameSrc } from '../../core/frames';
 
 // Draws the .page elements (index.html) in 3D on top of the WebGL canvas.
 const cssRenderer = new CSS3DRenderer();
@@ -56,7 +57,7 @@ export function fillPages(project, onOpenPdf, { embedPdf = true } = {}) {
   const [mainDoc, ...extraDocs] = project.documents ?? [];
   $('.page__pdf-wrap').hidden = !mainDoc || !embedPdf;
   $('.page__pdf-empty').hidden = Boolean(mainDoc);
-  $('.page__pdf').src = mainDoc && embedPdf ? `${mainDoc.pdf}#toolbar=0&view=FitH` : 'about:blank';
+  setFrameSrc($('.page__pdf'), mainDoc && embedPdf ? `${mainDoc.pdf}#toolbar=0&view=FitH` : 'about:blank');
 
   const pdfCard = $('.page__pdf-card');
   pdfCard.hidden = !mainDoc || embedPdf;
@@ -86,14 +87,14 @@ export function fillPages(project, onOpenPdf, { embedPdf = true } = {}) {
   github.href = project.github || '';
 
   $('.page__slides-wrap').hidden = !project.slides;
-  $('.page__slides').src = project.slides || 'about:blank';
+  setFrameSrc($('.page__slides'), project.slides || 'about:blank');
 }
 
 // Stops the voice-over and the slides' videos, and unloads the PDF, when the folder closes.
 export function stopPageMedia() {
   document.querySelector('.page__audio').pause();
-  document.querySelector('.page__slides').src = 'about:blank';
-  document.querySelector('.page__pdf').src = 'about:blank';
+  setFrameSrc(document.querySelector('.page__slides'), 'about:blank');
+  setFrameSrc(document.querySelector('.page__pdf'), 'about:blank');
 }
 
 export function renderPages(scene, camera) {

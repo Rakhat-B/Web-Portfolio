@@ -668,6 +668,31 @@ canvas {
   top: 36px; // below the wrap's top padding
 }
 
+// Spinner over a PDF or slides until they have loaded (core/frames.js). Sized in em, so it
+// grows with the folder pages' larger type.
+:is(.doc-viewer, .page__pdf-wrap, .page__slides-wrap).is-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2.5em;
+  height: 2.5em;
+  margin: -1.25em 0 0 -1.25em;
+  border: 0.25em solid rgba(0, 0, 0, 0.12);
+  border-top-color: #d08a3e;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: frame-spin 0.8s linear infinite;
+}
+
+.page__slides-wrap.is-loading::after {
+  top: calc(50% + 12px); // centred on the slides, below the wrap's top padding
+}
+
+@keyframes frame-spin {
+  to { rotate: 360deg; }
+}
+
 // Portrait: stands in for the embedded PDF on the right page and opens it in a new tab.
 .page__pdf-card {
   position: absolute;

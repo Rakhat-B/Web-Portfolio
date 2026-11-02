@@ -4,6 +4,7 @@ import { revealScene } from './features/loading/loadingScreen';
 import { createRenderer, createScene, createCamera, addLights, bindResize } from './core/scene';
 import { createGltfLoader } from './core/loaders';
 import { isPortrait, portraitQuery } from './core/layout';
+import { setFrameSrc } from './core/frames';
 import {
   createCameraControls, flyToPose, fitDistance, fitPose, CAMERA_POSES, PORTRAIT_VIEWS
 } from './features/camera/cameraController';
@@ -247,7 +248,7 @@ function showDocViewer() {
       docViewer.style.backgroundImage = `url(${doc.image})`;
       setDocLink(doc.pdf, doc.download);
     } else {
-      docFrame.src = `${doc.pdf}#view=FitH`;
+      setFrameSrc(docFrame, `${doc.pdf}#view=FitH`);
       setDocLink(doc.pdf, doc.download);
     }
   }
@@ -259,7 +260,7 @@ function closeDoc() {
   const { doc, object } = openedDoc;
   openedDoc = null;
   docViewer.hidden = true;
-  docFrame.src = 'about:blank';
+  setFrameSrc(docFrame, 'about:blank');
   const tween = { duration: 0.6, ease: 'power2.inOut' };
 
   docMotion?.kill(); // still flying up
@@ -286,7 +287,7 @@ function openPdf(project, doc) {
   }
   resetDocViewer();
   docViewer.classList.add('doc-viewer--centered');
-  docFrame.src = `${doc.pdf}#view=FitH`;
+  setFrameSrc(docFrame, `${doc.pdf}#view=FitH`);
   setDocLink(doc.pdf, `${project.title}_${doc.title}.pdf`.replace(/[^\w.]+/g, '_'));
   docViewer.hidden = false;
   docViewer.querySelector('.doc-viewer__close').focus();
@@ -301,7 +302,7 @@ function openSlides(project) {
   }
   resetDocViewer();
   docViewer.classList.add('doc-viewer--centered', 'doc-viewer--slides');
-  docFrame.src = project.slides;
+  setFrameSrc(docFrame, project.slides);
   docViewer.hidden = false;
   docViewer.querySelector('.doc-viewer__close').focus();
 }
@@ -326,7 +327,7 @@ function closeViewer() {
     closeDoc();
   } else if (!docViewer.hidden) {
     docViewer.hidden = true;
-    docFrame.src = 'about:blank';
+    setFrameSrc(docFrame, 'about:blank');
   }
 }
 
@@ -570,7 +571,7 @@ portraitQuery.addEventListener('change', () => {
   docMotion?.kill();
   openedDoc = null;
   docViewer.hidden = true;
-  docFrame.src = 'about:blank';
+  setFrameSrc(docFrame, 'about:blank');
   if (openedFolder) {
     stopPageMedia();
     setPagesVisible(false);
